@@ -3,10 +3,10 @@ process extract_umi {
   tag "Extract UMI for ${sample_id}"
   
   output:
-  tuple val(sample_id), path(r1_out_umi), path(r2_out_umi)
+  tuple val(sample_id), path("r1_out_umi"), path("r2_out_umi")
   
   input:
-  tuple val(sample_id), path(r1), path(r2), path(i2)
+  tuple val(sample_id), path("r1"), path("r2"), path("i2")
   
   script:
   """
@@ -25,10 +25,10 @@ process trim_odn {
   tag "Trim ODN for ${sample_id}"
   
   input:
-  tuple val(sample_id), path(r1), path(r2)
+  tuple val(sample_id), path("r1"), path("r2")
   
   output:
-  tuple val(sample_id), path(r1_out_odn), path(r2_out_odn)
+  tuple val(sample_id), path("r1_out_odn"), path("r2_out_odn")
   
   script:
   """
@@ -48,10 +48,10 @@ process trim_adapters {
   tag "Trim adapters for ${sample_id}"
   
   input:
-  tuple val(sample_id), path(r1), path(r2)
+  tuple val(sample_id), path("r1"), path("r2")
   
   output:
-  tuple val(sample_id), path(r1_out_adapter_trim), path(r2_out_adapter_trim)
+  tuple val(sample_id), path("r1_out_adapter_trim"), path("r2_out_adapter_trim")
   
   script:
   """
@@ -69,11 +69,11 @@ process filter_reads {
   tag "Filter reads on length for ${sample_id}"
   
   input:
-  tuple val(sample_id), path(r1), path(r2)
+  tuple val(sample_id), path("r1"), path("r2")
   
   output:
-  tuple val(sample_id), path(r1_length_filtered), path(r2_length_filtered), emit: filter_good
-  tuple val(sample_id), path(r2_too_short), emit: filter_bad
+  tuple val(sample_id), path("r1_length_filtered"), path("r2_length_filtered"), emit: filter_good
+  tuple val(sample_id), path("r2_too_short"), emit: filter_short
   
   script:
   """
@@ -88,18 +88,17 @@ process filter_reads {
   """
 }
 
-
 // Align paired end reads to genome
 process align_to_genome {
     tag "Align ${sample_id} to genome"
+    cpus 2
   
     input:
-    tuple val(sample_id), path(r1), path(r2)
-    path index
+    tuple val(sample_id), path("r1"), path("r2")
     
     output:
     tuple val(sample_id), path("alignment.sam"), emit: alignment
-    tuple val(sample_id), path("unaligned_reads.R1.fastq.gz"), path("unaligned_reads.R2.fastq.gz"), emit: unmapped
+    tuple val(sample_id), path("unaligned_reads.R2.fastq"), emit: unmapped
     
     script:
     """
@@ -109,11 +108,89 @@ process align_to_genome {
     --dovetail \
     --no-mixed \
     --no-discordant \
-    --un-conc-gz unaligned_reads.R%.fastq.gz \
-    -x $index \
-    alignment.sam -1 ${r1} -2 ${r2} 2> alignment.log
+    --un-conc unaligned_reads.R%.fastq \
+    -x ${params.index} \
+    -S alignment.sam -1 ${r1} -2 ${r2} 2> alignment.log
     """
 }
+
+// Filter reads. We retain reads for which (1) the mapq is sufficiently high, or (2) the read mapped to 2+ locations with 0 or 1 mismatches. (In the latter case, choose randomly.)
+
+// (From https://biofinysics.blogspot.com/2014/05/how-does-bowtie2-assign-mapq-scores.html#bt2expt)
+// In bowtie2, the best a true multiread (AS=XS) can get is MAPQ=1 regardless of how low or high its multiplicity.
+// This occurs when there are 0 or 1 mismatches over perfect base calls in the read, or when AS=XS goes down to -6.
+// When there are 2-5 mismatches over perfect base calls (or the AS=XS <= -12 ---- i.e. -12 to -30.6), the MAPQ becomes 0.
+process filter_alignments {
+  tag "Filter alignment for sample ${sample_id}"
+  
+  input:
+  tuple val(sample_id), path("alignment")
+  
+  output:
+  tuple val(sample_id), path("alignment"), path("filtered_reads.txt")
+  
+  script:
+  """
+  samtools view ${alignment} -e '((mapq == 1 && [AS] == [XS]) || (mapq >=${params.min_mapq}))' | cut -f1 | sort | uniq  > filtered_reads.txt
+  """
+}
+
+// Sort and index alignments for downstream processing
+process sort_alignments {
+  tag "Sort alignments for sample ${sample_id}"
+  
+  input:
+  tuple val(sample_id), path("alignment"), path("filtered_reads")
+  
+  output:
+  tuple val(sample_id), path("output.bamName")
+  
+  script:
+  """
+  samtools sort -@ ${task.cpus} ${alignment} > output.bamPos
+  samtools view -hb --qname-file ${filtered_reads} output.bamPos > output.bam
+  samtools index output.bam
+  samtools sort -n -@ ${task.cpus} output.bam > output.bamName
+  """
+}
+
+process call_integration_sites {
+  tag "Call integration sites for sample ${sample_id}"
+  
+  input:
+  tuple val(sample_id), path("input_bam")
+  
+  output:
+  tuple val(sample_id), path("output.umi")
+  
+  """
+  bedtools bamtobed -bedpe -mate1 -i ${input_bam} > output.tmp
+  awk 'BEGIN{OFS="\\t";FS="\\t"} (\$1 == \$4) {split(\$7,a,"_"); if(\$10=="+") print \$4,\$5,\$5,a[1],a[2],a[3],\$8,\$10,\$3-\$5; else print \$4,\$6-1,\$6-1,a[1],a[2],a[3],\$8,\$10,\$6-\$2}' output.tmp | sort -k1,1 -k2,3n -k6,6 -k5,5 -k8,8 | bedtools groupby -g 1,2,3,6,5,8 -c 4,7 -o count_distinct,median  > output.umi
+  """
+}
+
+process rescue_r2_reads {
+  tag "Rescue R2 reads for sample ${sample_id}"
+  cpus 2
+  
+  input:
+  tuple val(sample_id), path(r2_short)
+  tuple val(sample_id), path(r2_unmapped)
+  
+  output:
+  tuple val(sample_id), path("alignment.sam")
+  
+  script:
+  """
+  bowtie2 -p ${task.cpus} --no-unal \
+  -x ${params.index} \
+  -U ${r2_short},${r2_unmapped} -S alignment.sam 2> alignment.log
+  """
+}
+
+//process sort_rescued_r2_reads {
+  
+//}
 
 // WORKFLOW
 workflow {
@@ -132,6 +209,12 @@ workflow {
   ch_trim_odn = trim_odn(ch_extract_umi)
   ch_trim_adapter = trim_adapters(ch_trim_odn)
   ch_filter_reads = filter_reads(ch_trim_adapter)
-  // ch_filter_reads.filter_bad
-  align_to_genome(ch_filter_reads.filter_good, params.index)
+  // MAIN BRANCH: align good paired end reads
+  ch_align_genome = align_to_genome(ch_filter_reads.filter_good)
+  ch_filter_alignments = filter_alignments(ch_align_genome.alignment)
+  ch_sort_alignments = sort_alignments(ch_filter_alignments)
+  ch_call_integration_sites = call_integration_sites(ch_sort_alignments)
+  // SIDE BRANCH: try to rescue R2 reads
+  ch_rescue_r2_reads = rescue_r2_reads(ch_filter_reads.filter_short, ch_align_genome.unmapped)
+  ch_rescue_r2_reads.view()
 }
