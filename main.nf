@@ -154,6 +154,7 @@ process sort_alignments {
   """
 }
 
+// call the integration site (the first base of the R2 read)
 process call_integration_sites {
   tag "Call integration sites for sample ${sample_id}"
   
@@ -165,10 +166,11 @@ process call_integration_sites {
   
   """
   bedtools bamtobed -bedpe -mate1 -i ${input_bam} > output.tmp
-  awk 'BEGIN{OFS="\\t";FS="\\t"} (\$1 == \$4) {split(\$7,a,"_"); if(\$10=="+") print \$4,\$5,\$5,a[1],a[2],a[3],\$8,\$10,\$3-\$5; else print \$4,\$6-1,\$6-1,a[1],a[2],a[3],\$8,\$10,\$6-\$2}' output.tmp | sort -k1,1 -k2,3n -k6,6 -k5,5 -k8,8 | bedtools groupby -g 1,2,3,6,5,8 -c 4,7 -o count_distinct,median  > output.umi
+  awk 'BEGIN{OFS="\\t";FS="\\t"} (\$1 == \$4) {split(\$7,a,"_"); if(\$10=="+") print \$4,\$5,\$5,a[1],a[2],a[3],\$8,\$10,\$3-\$5; else print \$4,\$6-1,\$6-1,a[1],a[2],a[3],\$8,\$10,\$6-\$2}' output.tmp | sort -k1,1 -k2,3n -k6,6 -k5,5 -k8,8 | bedtools groupby -g 1,2,3,6,5,8 -c 4,7 -o count_distinct,mean  > output.umi
   """
 }
 
+// align R2 reads that (i) were filtered out because they were too short or (ii) failed to align as a pair
 process rescue_r2_reads {
   tag "Rescue R2 reads for sample ${sample_id}"
   cpus 2
@@ -178,19 +180,50 @@ process rescue_r2_reads {
   tuple val(sample_id), path(r2_unmapped)
   
   output:
-  tuple val(sample_id), path("alignment.sam")
+  tuple val(sample_id), path("r2_alignment.sam")
   
   script:
   """
   bowtie2 -p ${task.cpus} --no-unal \
   -x ${params.index} \
-  -U ${r2_short},${r2_unmapped} -S alignment.sam 2> alignment.log
+  -U ${r2_short},${r2_unmapped} -S r2_alignment.sam 2> alignment.log
   """
 }
 
-//process sort_rescued_r2_reads {
+// sort the aligned R2 reads
+process sort_rescued_r2_reads {
+  tag "Sort rescued R2 reads for sample ${sample_id}"
   
-//}
+  input:
+  tuple val(sample_id), path("r2_alignment")
+  
+  output:
+  tuple val(sample_id), path("r2_alignment_sorted")
+  
+  shell:
+  """
+  samtools view -b -h  ${r2_alignment} -e '((mapq == 1 && [AS] == [XS]) || (mapq >=${params.min_mapq}))' | samtools sort - > r2_alignment_sorted
+  samtools index r2_alignment_sorted
+  """
+}
+
+// call integration sites for the rescued R2 reads
+process call_integration_sites_r2_reads {
+  tag "Call integration sites for rescued R2 reads for sample ${sample_id}"
+  
+  input:
+  tuple val(sample_id), path("r2_alignment")
+  
+  output:
+  tuple val(sample_id), path("output.umi")
+  
+  """
+  bedtools bamtobed -i ${r2_alignment} > output.tmp
+  awk 'BEGIN{OFS="\\t";FS="\\t"} {split(\$4,a,"_"); if(\$6=="+") print \$1,\$2,\$2,a[1],a[2],a[3],\$5,\$6,\$3-\$2; else print \$1,\$3-1,\$3-1,a[1],a[2],a[3],\$5,\$6,\$3-\$2}' output.tmp | sort -k1,1 -k2,3n -k6,6 -k5,5 -k8,8 | bedtools groupby -g 1,2,3,6,5,8 -c 4,7 -o count_distinct,mean > output.umi
+  """
+}
+
+// produce combined data frame
 
 // WORKFLOW
 workflow {
@@ -209,12 +242,14 @@ workflow {
   ch_trim_odn = trim_odn(ch_extract_umi)
   ch_trim_adapter = trim_adapters(ch_trim_odn)
   ch_filter_reads = filter_reads(ch_trim_adapter)
-  // MAIN BRANCH: align good paired end reads
+  // MAIN LOGIC: align good paired end reads
   ch_align_genome = align_to_genome(ch_filter_reads.filter_good)
   ch_filter_alignments = filter_alignments(ch_align_genome.alignment)
   ch_sort_alignments = sort_alignments(ch_filter_alignments)
   ch_call_integration_sites = call_integration_sites(ch_sort_alignments)
-  // SIDE BRANCH: try to rescue R2 reads
+  // PARALLEL RESCUE LOGIC: try to rescue R2 reads
   ch_rescue_r2_reads = rescue_r2_reads(ch_filter_reads.filter_short, ch_align_genome.unmapped)
-  ch_rescue_r2_reads.view()
+  ch_sort_rescued_r2_reads = sort_rescued_r2_reads(ch_rescue_r2_reads)
+  ch_call_integration_sites_r2_reads = call_integration_sites_r2_reads(ch_sort_rescued_r2_reads)
+  ch_call_integration_sites_r2_reads.view()
 }
