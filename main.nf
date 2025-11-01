@@ -215,15 +215,30 @@ process call_integration_sites_r2_reads {
   tuple val(sample_id), path("r2_alignment")
   
   output:
-  tuple val(sample_id), path("output.umi")
+  tuple val(sample_id), path("output_r2.umi")
   
   """
   bedtools bamtobed -i ${r2_alignment} > output.tmp
-  awk 'BEGIN{OFS="\\t";FS="\\t"} {split(\$4,a,"_"); if(\$6=="+") print \$1,\$2,\$2,a[1],a[2],a[3],\$5,\$6,\$3-\$2; else print \$1,\$3-1,\$3-1,a[1],a[2],a[3],\$5,\$6,\$3-\$2}' output.tmp | sort -k1,1 -k2,3n -k6,6 -k5,5 -k8,8 | bedtools groupby -g 1,2,3,6,5,8 -c 4,7 -o count_distinct,mean > output.umi
+  awk 'BEGIN{OFS="\\t";FS="\\t"} {split(\$4,a,"_"); if(\$6=="+") print \$1,\$2,\$2,a[1],a[2],a[3],\$5,\$6,\$3-\$2; else print \$1,\$3-1,\$3-1,a[1],a[2],a[3],\$5,\$6,\$3-\$2}' output.tmp | sort -k1,1 -k2,3n -k6,6 -k5,5 -k8,8 | bedtools groupby -g 1,2,3,6,5,8 -c 4,7 -o count_distinct,mean > output_r2.umi
   """
 }
 
 // produce combined data frame
+// combine paired-end and r2 read data frames; collapse by UMI
+process produce_combined_collapsed_data_frame {
+  tag "Producing combined/collapsed data frame from sample ${sample_id}"
+  
+  input:
+  tuple val(sample_id), path("paired_df"), path("r2_df")
+
+  output:
+  tuple val(sample_id), path("${sample_id}_count_table.rds")
+  
+  script:
+  """
+  collapse_umis.R ${paired_df} ${r2_df} ${sample_id}_count_table.rds
+  """
+}
 
 // WORKFLOW
 workflow {
@@ -251,5 +266,7 @@ workflow {
   ch_rescue_r2_reads = rescue_r2_reads(ch_filter_reads.filter_short, ch_align_genome.unmapped)
   ch_sort_rescued_r2_reads = sort_rescued_r2_reads(ch_rescue_r2_reads)
   ch_call_integration_sites_r2_reads = call_integration_sites_r2_reads(ch_sort_rescued_r2_reads)
-  ch_call_integration_sites_r2_reads.view()
+  // PRODUCE FINAL UMI-COLLAPSED DATA FRAME
+  joined_ch = ch_call_integration_sites.join(ch_call_integration_sites_r2_reads)
+  produce_combined_collapsed_data_frame(joined_ch).view()
 }
