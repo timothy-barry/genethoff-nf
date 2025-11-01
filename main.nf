@@ -1,3 +1,37 @@
+/*
+* PART I: BASIC READ PROCESSING
+*/
+
+process initial_read_processing {
+  tag "Run initial read processing for ${sample_id}"
+  
+  input:
+  tuple val(sample_id), path("r1"), path("r2"), path("i2")
+  
+  output:
+  tuple val(sample_id), path("r1_length_filtered"), path("r2_length_filtered"), emit: filter_good
+  tuple val(sample_id), path("r2_too_short"), emit: filter_short
+  
+  script:
+  """
+  # step A
+  
+  if [ ${params.umi_side} = "5" ]; then
+      cutadapt -j ${task.cpus} -u ${params.umi_length} --rename='{id}_{r1.cut_prefix} {comment}' -o i2_out_umi -p r1_out_umi $i2 $r1 > extract_umi_r1.log
+      cutadapt -j ${task.cpus} -u ${params.umi_length} --rename='{id}_{r1.cut_prefix} {comment}' -o i2_out_umi -p r2_out_umi $i2 $r2 > extract_umi_r2.log
+  else
+      cutadapt -j ${task.cpus} -u -${params.umi_length} --rename='{id}_{r1.cut_suffix} {comment}' -o i2_out_umi -p r1_out_umi $i2 $r1 > extract_umi_r1.log
+      cutadapt -j ${task.cpus} -u -${params.umi_length} --rename='{id}_{r1.cut_suffix} {comment}' -o i2_out_umi -p r2_out_umi $i2 $r2 > extract_umi_r2.log
+  fi
+  
+  # step B
+  
+  
+  """
+}
+
+
+
 // Move the UMI from I2 to the R1/R2 read ID
 process extract_umi {
   tag "Extract UMI for ${sample_id}"
@@ -87,6 +121,8 @@ process filter_reads {
   $r1 $r2 > filter_length.log
   """
 }
+
+
 
 // Align paired end reads to genome
 process align_to_genome {
@@ -268,5 +304,5 @@ workflow {
   ch_call_integration_sites_r2_reads = call_integration_sites_r2_reads(ch_sort_rescued_r2_reads)
   // PRODUCE FINAL UMI-COLLAPSED DATA FRAME
   joined_ch = ch_call_integration_sites.join(ch_call_integration_sites_r2_reads)
-  produce_combined_collapsed_data_frame(joined_ch).view()
+  produce_combined_collapsed_data_frame(joined_ch)
 }
