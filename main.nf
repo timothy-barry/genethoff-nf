@@ -1,10 +1,10 @@
-/*
-* PART I: BASIC READ PROCESSING
-*/
+// TO DO
+// 1. publishDir
+// 2. keeping track of log files
 
 process run_initial_read_processing {
   tag "Running initial read processing and alignment for ${sample_id}"
-  
+  publishDir "${params.outdir}/${sample_id}", mode: "copy", pattern: "*.log"
   cpus 4
   memory 6.GB
   time 20.m
@@ -15,6 +15,11 @@ process run_initial_read_processing {
   output:
   tuple val(sample_id), path("paired_alignment.sam"), emit: aligned
   tuple val(sample_id), path("r2_too_short"), path("unaligned_reads.R2.fastq"), emit: bad_r2
+  path("1_trim_5_prime_tag.log")
+  path("2_trim_3_prime_adapter.log")
+  path("3_filter_by_length.log")
+  path("4_align_paired_end_reads.log")
+  
   
   script:
   """
@@ -35,7 +40,7 @@ process run_initial_read_processing {
   -G "positive=${params.primer.positive.R2_leading};max_error_rate=0;rightmost" \
   --discard-untrimmed \
   --rename='{id}_{r2.adapter_name} {comment}' \
-  -o r1_out_odn -p r2_out_odn r1_out_umi r2_out_umi > trim_odn.log
+  -o r1_out_odn -p r2_out_odn r1_out_umi r2_out_umi > 1_trim_5_prime_tag.log
   
   # step C
   
@@ -44,7 +49,7 @@ process run_initial_read_processing {
   -A "${params.primer.negative.R2_trailing};min_overlap=6;max_error_rate=0.1" \
   -a "${params.primer.positive.R1_trailing};min_overlap=6;max_error_rate=0.1" \
   -a "${params.primer.negative.R1_trailing};min_overlap=6;max_error_rate=0.1" \
-  -o r1_out_adapter_trim -p r2_out_adapter_trim r1_out_odn r2_out_odn > adapter_trim.log
+  -o r1_out_adapter_trim -p r2_out_adapter_trim r1_out_odn r2_out_odn > 2_trim_3_prime_adapter.log
   
   # step D
   
@@ -55,7 +60,7 @@ process run_initial_read_processing {
   --too-short-paired-output r2_too_short \
   -o r1_length_filtered \
   -p r2_length_filtered \
-  r1_out_adapter_trim r2_out_adapter_trim > filter_length.log
+  r1_out_adapter_trim r2_out_adapter_trim > 3_filter_by_length.log
   
   # step E
   
@@ -67,14 +72,14 @@ process run_initial_read_processing {
   --no-discordant \
   --un-conc unaligned_reads.R%.fastq \
   -x ${params.index} \
-  -S paired_alignment.sam -1 r1_length_filtered -2 r2_length_filtered 2> alignment.log
+  -S paired_alignment.sam -1 r1_length_filtered -2 r2_length_filtered 2> 4_align_paired_end_reads.log
   """
 }
 
 
 process process_paired_end_alignments {
+  publishDir "${params.outdir}/${sample_id}", mode: "copy", pattern: "*.log"
   tag "Processing paired end alignments for sample ${sample_id}"
-  
   cpus 1
   memory 6.GB
   time 5.m
@@ -83,13 +88,17 @@ process process_paired_end_alignments {
   tuple val(sample_id), path("alignment")
   
   output:
-  tuple val(sample_id), path("output.umi")
+  tuple val(sample_id), path("output.umi"), emit: out
+  path("5_alignment_qc.log")
 
   """
   # step A
   
   samtools view ${alignment} -e '((mapq == 1 && [AS] == [XS]) || (mapq >=${params.min_mapq}))' | cut -f1 | sort | uniq  > filtered_reads.txt
-
+  
+  echo "Number of reads passing post-alignment quality control: " >> 5_alignment_qc.log
+  cat filtered_reads.txt | wc -l >> 5_alignment_qc.log
+  
   # step B
   
   samtools sort -@ ${task.cpus} ${alignment} > output.bamPos
@@ -105,8 +114,8 @@ process process_paired_end_alignments {
 
 
 process rescue_r2_reads {
+  publishDir "${params.outdir}/${sample_id}", mode: "copy", pattern: "*.log"
   tag "Rescuing R2 reads for sample ${sample_id}"
-    
   cpus 4
   memory 6.GB
   time 20.m
@@ -115,8 +124,8 @@ process rescue_r2_reads {
   tuple val(sample_id), path("r2_short"), path("r2_unmapped")
   
   output:
-  tuple val(sample_id), path("output_r2.umi")
-  
+  tuple val(sample_id), path("output_r2.umi"), emit: out
+  path("6_align_r2_reads.log")
   
   script:
   """
@@ -124,7 +133,7 @@ process rescue_r2_reads {
   
   bowtie2 -p ${task.cpus} --no-unal \
   -x ${params.index} \
-  -U ${r2_short},${r2_unmapped} -S r2_alignment.sam 2> alignment.log
+  -U ${r2_short},${r2_unmapped} -S r2_alignment.sam 2> 6_align_r2_reads.log
   
   # step B
   
@@ -139,13 +148,10 @@ process rescue_r2_reads {
 }
 
 
-// produce combined data frame
-// combine paired-end and r2 read data frames; collapse by UMI
 process produce_combined_collapsed_data_frame {
   cpus 1
   memory 6.GB
   time 5.m
-  
   tag "Producing combined/collapsed data frame from sample ${sample_id}"
   
   input:
@@ -162,9 +168,8 @@ process produce_combined_collapsed_data_frame {
 
 // WORKFLOW
 workflow {
-// Set up fastq file channels
   Channel.fromPath(params.samplesheet)
-      .splitCsv(header: true, sep: '\t') // Read the TSV file
+      .splitCsv(header: true, sep: '\t')
       .map { row ->
           def sample_id = row.sample_id
           def r1 = file(row.R1, checkIfExists: true)
@@ -174,8 +179,8 @@ workflow {
       }
       .set { ch_input_reads }
   ch_run_initial_read_processing = run_initial_read_processing(ch_input_reads)
-  ch_process_paired_end_alignments = process_paired_end_alignments(ch_run_initial_read_processing.aligned)
+  ch_process_paired_end_alignments = process_paired_end_alignments(ch_run_initial_read_processing.aligned).out
   ch_rescue_r2_reads = rescue_r2_reads(ch_run_initial_read_processing.bad_r2)
   joined_ch = ch_process_paired_end_alignments.join(ch_rescue_r2_reads)
-  produce_combined_collapsed_data_frame(joined_ch).view()
+  produce_combined_collapsed_data_frame(joined_ch)
 }
