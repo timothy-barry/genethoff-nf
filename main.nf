@@ -89,14 +89,14 @@ process process_paired_end_alignments {
   
   output:
   tuple val(sample_id), path("output.umi"), emit: out
-  path("5_alignment_qc.log")
+  path("5_paired_end_alignment_qc.log")
 
   """
   # step A
   
   samtools view ${alignment} -e '((mapq == 1 && [AS] == [XS]) || (mapq >=${params.min_mapq}))' | cut -f1 | sort | uniq  > filtered_reads.txt
   
-  echo "Number of reads passing post-alignment quality control: " >> 5_alignment_qc.log
+  echo "Number of reads passing post-alignment quality control: " >> 5_paired_end_alignment_qc.log
   cat filtered_reads.txt | wc -l >> 5_alignment_qc.log
   
   # step B
@@ -126,6 +126,7 @@ process rescue_r2_reads {
   output:
   tuple val(sample_id), path("output_r2.umi"), emit: out
   path("6_align_r2_reads.log")
+  path("7_r2_alignment_qc.log")
   
   script:
   """
@@ -139,6 +140,8 @@ process rescue_r2_reads {
   
   samtools view -b -h r2_alignment.sam -e '((mapq == 1 && [AS] == [XS]) || (mapq >=${params.min_mapq}))' | samtools sort - > r2_alignment_sorted
   samtools index r2_alignment_sorted
+  echo "Number of reads passing post-alignment quality control: " >> 7_r2_alignment_qc.log
+  (samtools view -c -F 260 r2_alignment_sorted) >> 7_r2_alignment_qc.log
   
   # step C
   
@@ -153,6 +156,7 @@ process produce_combined_collapsed_data_frame {
   memory 6.GB
   time 5.m
   tag "Producing combined/collapsed data frame from sample ${sample_id}"
+  publishDir "${params.outdir}/${sample_id}", mode: "copy"
   
   input:
   tuple val(sample_id), path("paired_df"), path("r2_df")
@@ -180,7 +184,7 @@ workflow {
       .set { ch_input_reads }
   ch_run_initial_read_processing = run_initial_read_processing(ch_input_reads)
   ch_process_paired_end_alignments = process_paired_end_alignments(ch_run_initial_read_processing.aligned).out
-  ch_rescue_r2_reads = rescue_r2_reads(ch_run_initial_read_processing.bad_r2)
+  ch_rescue_r2_reads = rescue_r2_reads(ch_run_initial_read_processing.bad_r2).out
   joined_ch = ch_process_paired_end_alignments.join(ch_rescue_r2_reads)
   produce_combined_collapsed_data_frame(joined_ch)
 }
