@@ -36,8 +36,8 @@ process run_initial_read_processing {
   # step B
   
   cutadapt -j ${task.cpus} \
-  -G "negative=${params.primer.negative.R2_leading};max_error_rate=0;rightmost" \
-  -G "positive=${params.primer.positive.R2_leading};max_error_rate=0;rightmost" \
+  -G "negative=${params.primer.negative.R2_leading};max_error_rate=0.1;rightmost" \
+  -G "positive=${params.primer.positive.R2_leading};max_error_rate=0.1;rightmost" \
   --discard-untrimmed \
   --rename='{id}_{r2.adapter_name} {comment}' \
   -o r1_out_odn -p r2_out_odn r1_out_umi r2_out_umi > 1_trim_5_prime_tag.log
