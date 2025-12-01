@@ -94,7 +94,12 @@ process process_paired_end_alignments {
   """
   # step A
   
-  samtools view ${alignment} -e '((mapq == 1 && [AS] == [XS]) || (mapq >=${params.min_mapq}))' | cut -f1 | sort | uniq  > filtered_reads.txt
+  # keep multimapped reads
+  if [ "${params.keep_multimapped_reads}" = "true" ]; then
+    samtools view ${alignment} -e '( (mapq == 1 && [AS] == [XS]) || (mapq >=${params.min_mapq}) )' | cut -f1 | sort | uniq  > filtered_reads.txt
+  else
+    samtools view ${alignment} -e '(mapq >=${params.min_mapq})' | cut -f1 | sort | uniq  > filtered_reads.txt
+  fi
   
   echo "Number of reads passing post-alignment quality control: " >> 5_paired_end_alignment_qc.log
   cat filtered_reads.txt | wc -l >> 5_alignment_qc.log
