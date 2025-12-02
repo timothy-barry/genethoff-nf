@@ -25,7 +25,7 @@ process run_initial_read_processing {
   """
   # step A
   
-  if [ ${params.umi_side} = "5" ]; then
+  if [ "${params.umi_side}" = "5" ]; then
       cutadapt -j ${task.cpus} -u ${params.umi_length} --rename='{id}_{r1.cut_prefix} {comment}' -o i2_out_umi -p r1_out_umi $i2 $r1 > extract_umi_r1.log
       cutadapt -j ${task.cpus} -u ${params.umi_length} --rename='{id}_{r1.cut_prefix} {comment}' -o i2_out_umi -p r2_out_umi $i2 $r2 > extract_umi_r2.log
   else
@@ -102,7 +102,7 @@ process process_paired_end_alignments {
   fi
   
   echo "Number of reads passing post-alignment quality control: " >> 5_paired_end_alignment_qc.log
-  cat filtered_reads.txt | wc -l >> 5_alignment_qc.log
+  cat filtered_reads.txt | wc -l >> 5_paired_end_alignment_qc.log
   
   # step B
   
