@@ -146,7 +146,7 @@ process rescue_r2_reads {
   if [ "${params.keep_multimapped_reads}" = "true" ]; then
     samtools view -b -h r2_alignment.sam -e '((mapq == 1 && [AS] == [XS]) || (mapq >=${params.min_mapq}))' | samtools sort - > r2_alignment_sorted
   else
-    samtools view ${alignment} -e '(mapq >=${params.min_mapq})' | cut -f1 | sort | uniq  > filtered_reads.txt
+    samtools view -b -h r2_alignment.sam -e '(mapq >=${params.min_mapq}))' | samtools sort - > r2_alignment_sorted
   fi 
     
   samtools index r2_alignment_sorted
