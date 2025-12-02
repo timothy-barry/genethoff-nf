@@ -23,7 +23,7 @@ process run_initial_read_processing {
   
   script:
   """
-  # step A
+  # step A: extract the UMI
   
   if [ "${params.umi_side}" = "5" ]; then
       cutadapt -j ${task.cpus} -u ${params.umi_length} --rename='{id}_{r1.cut_prefix} {comment}' -o i2_out_umi -p r1_out_umi $i2 $r1 > extract_umi_r1.log
@@ -33,7 +33,7 @@ process run_initial_read_processing {
       cutadapt -j ${task.cpus} -u -${params.umi_length} --rename='{id}_{r1.cut_suffix} {comment}' -o i2_out_umi -p r2_out_umi $i2 $r2 > extract_umi_r2.log
   fi
   
-  # step B
+  # step B: trim the dsODN tag
   
   cutadapt -j ${task.cpus} \
   -G "negative=${params.primer.negative.R2_leading};max_error_rate=0.02;rightmost" \
@@ -42,7 +42,7 @@ process run_initial_read_processing {
   --rename='{id}_{r2.adapter_name} {comment}' \
   -o r1_out_odn -p r2_out_odn r1_out_umi r2_out_umi > 1_trim_5_prime_tag.log
   
-  # step C
+  # step C: trim the adapter sequences
   
   cutadapt -j ${task.cpus} \
   -A "${params.primer.positive.R2_trailing};min_overlap=6;max_error_rate=0.1" \
@@ -51,7 +51,7 @@ process run_initial_read_processing {
   -a "${params.primer.negative.R1_trailing};min_overlap=6;max_error_rate=0.1" \
   -o r1_out_adapter_trim -p r2_out_adapter_trim r1_out_odn r2_out_odn > 2_trim_3_prime_adapter.log
   
-  # step D
+  # step D: remove reads that are too short
   
   cutadapt -j ${task.cpus} \
   --pair-filter=any \
@@ -92,9 +92,9 @@ process process_paired_end_alignments {
   path("5_paired_end_alignment_qc.log")
 
   """
-  # step A
+  # step A: filter reads based on quality
   
-  # keep multimapped reads
+  # fork on whether to keep multimapping reads or not
   if [ "${params.keep_multimapped_reads}" = "true" ]; then
     samtools view ${alignment} -e '( (mapq == 1 && [AS] == [XS]) || (mapq >=${params.min_mapq}) )' | cut -f1 | sort | uniq  > filtered_reads.txt
   else
@@ -104,13 +104,13 @@ process process_paired_end_alignments {
   echo "Number of reads passing post-alignment quality control: " >> 5_paired_end_alignment_qc.log
   cat filtered_reads.txt | wc -l >> 5_paired_end_alignment_qc.log
   
-  # step B
+  # step B: sort and index bam file
   
   samtools sort -@ ${task.cpus} ${alignment} > output.bamPos
   samtools view -hb --qname-file filtered_reads.txt output.bamPos > output.bam
   samtools index output.bam
   
-  # step C
+  # step C: count number of reads per base
   
   bedtools bamtobed -bedpe -mate1 -i output.bam > output.tmp
   awk 'BEGIN{OFS="\\t";FS="\\t"} (\$1 == \$4) {split(\$7,a,"_"); if(\$10=="+") print \$4,\$5,\$5,a[1],a[2],a[3],\$8,\$10,\$3-\$5; else print \$4,\$6-1,\$6-1,a[1],a[2],a[3],\$8,\$10,\$6-\$2}' output.tmp | sort -k1,1 -k2,3n -k6,6 -k5,5 -k8,8 | bedtools groupby -g 1,2,3,6,5,8 -c 4,7 -o count_distinct,mean  > output.umi
@@ -130,31 +130,40 @@ process rescue_r2_reads {
   
   output:
   tuple val(sample_id), path("output_r2.umi"), emit: out
-  path("6_align_r2_reads.log")
-  path("7_r2_alignment_qc.log")
+  path("6_filter_r2_leftovers_by_length.log")
+  path("7_align_r2_reads.log")
+  path("8_r2_alignment_qc.log")
   
   script:
   """
-  # step A
+  # step A: combine r2_short, r2_unmapped into a single fastq file; filer on read length
+  cat ${r2_short} ${r2_unmapped} > combined_r2
   
+  cutadapt -j ${task.cpus} \
+  --minimum-length ${params.min_length} \
+  --too-short-output r2_too_short \
+  -o r2_good_length \
+  combined_r2 > 6_filter_r2_leftovers_by_length.log
+  
+  # step B: run bowtie to align reads
   bowtie2 -p ${task.cpus} --no-unal \
   -x ${params.index} \
-  -U ${r2_short},${r2_unmapped} -S r2_alignment.sam 2> 6_align_r2_reads.log
+  -U r2_good_length -S r2_alignment.sam 2> 7_align_r2_reads.log
   
-  # step B
-  # keep multimapped reads
+  # step C: filter reads based on alignment quality
+  # fork on whether read is multimapped
   if [ "${params.keep_multimapped_reads}" = "true" ]; then
     samtools view -b -h r2_alignment.sam -e '((mapq == 1 && [AS] == [XS]) || (mapq >=${params.min_mapq}))' | samtools sort - > r2_alignment_sorted
   else
     samtools view -b -h r2_alignment.sam -e '(mapq >=${params.min_mapq})' | samtools sort - > r2_alignment_sorted
   fi 
     
+  # step D: sort and index alignment file
   samtools index r2_alignment_sorted
-  echo "Number of reads passing post-alignment quality control: " >> 7_r2_alignment_qc.log
-  (samtools view -c -F 260 r2_alignment_sorted) >> 7_r2_alignment_qc.log
+  echo "Number of reads passing post-alignment quality control: " >> 8_r2_alignment_qc.log
+  (samtools view -c -F 260 r2_alignment_sorted) >> 8_r2_alignment_qc.log
   
-  # step C
-  
+  # step E: count number of reads per base
   bedtools bamtobed -i r2_alignment_sorted > output.tmp
   awk 'BEGIN{OFS="\\t";FS="\\t"} {split(\$4,a,"_"); if(\$6=="+") print \$1,\$2,\$2,a[1],a[2],a[3],\$5,\$6,\$3-\$2; else print \$1,\$3-1,\$3-1,a[1],a[2],a[3],\$5,\$6,\$3-\$2}' output.tmp | sort -k1,1 -k2,3n -k6,6 -k5,5 -k8,8 | bedtools groupby -g 1,2,3,6,5,8 -c 4,7 -o count_distinct,mean > output_r2.umi
   """
