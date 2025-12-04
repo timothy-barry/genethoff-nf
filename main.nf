@@ -6,7 +6,7 @@ process run_initial_read_processing {
   tag "Running initial read processing and alignment for ${sample_id}"
   publishDir "${params.outdir}/${sample_id}", mode: "copy", pattern: "*.log"
   cpus 4
-  memory 6.GB
+  memory 8.GB
   time 20.m
   
   input:
@@ -122,7 +122,7 @@ process rescue_r2_reads {
   publishDir "${params.outdir}/${sample_id}", mode: "copy", pattern: "*.log"
   tag "Rescuing R2 reads for sample ${sample_id}"
   cpus 4
-  memory 6.GB
+  memory 8.GB
   time 20.m
   
   input:
