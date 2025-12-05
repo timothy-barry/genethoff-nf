@@ -10,7 +10,7 @@ process run_initial_read_processing {
   time 20.m
   
   input:
-  tuple val(sample_id), path("r1"), path("r2"), path("i2")
+  tuple val(sample_id), path("r1"), path("r2"), path("i2"), val("negative_R2_leading"), val("positive_R2_leading"), val("negative_R1_trailing"), val("positive_R1_trailing")
   
   output:
   tuple val(sample_id), path("paired_alignment.sam"), emit: aligned
@@ -36,8 +36,8 @@ process run_initial_read_processing {
   # step B: trim the dsODN tag
   
   cutadapt -j ${task.cpus} \
-  -G "negative=${params.primer.negative.R2_leading};max_error_rate=0.02;rightmost" \
-  -G "positive=${params.primer.positive.R2_leading};max_error_rate=0.02;rightmost" \
+  -G "negative=$negative_R2_leading;max_error_rate=0.02;rightmost" \
+  -G "positive=$positive_R2_leading;max_error_rate=0.02;rightmost" \
   --discard-untrimmed \
   --rename='{id}_{r2.adapter_name} {comment}' \
   -o r1_out_odn -p r2_out_odn r1_out_umi r2_out_umi > 1_trim_5_prime_tag.log
@@ -45,10 +45,9 @@ process run_initial_read_processing {
   # step C: trim the adapter sequences
   
   cutadapt -j ${task.cpus} \
-  -A "${params.primer.positive.R2_trailing};min_overlap=6;max_error_rate=0.1" \
-  -A "${params.primer.negative.R2_trailing};min_overlap=6;max_error_rate=0.1" \
-  -a "${params.primer.positive.R1_trailing};min_overlap=6;max_error_rate=0.1" \
-  -a "${params.primer.negative.R1_trailing};min_overlap=6;max_error_rate=0.1" \
+  -A "${params.primer.R2_trailing};min_overlap=6;max_error_rate=0.1" \
+  -a "$positive_R1_trailing;min_overlap=6;max_error_rate=0.1" \
+  -a "$negative_R1_trailing;min_overlap=6;max_error_rate=0.1" \
   -o r1_out_adapter_trim -p r2_out_adapter_trim r1_out_odn r2_out_odn > 2_trim_3_prime_adapter.log
   
   # step D: remove reads that are too short
@@ -198,9 +197,14 @@ workflow {
           def r1 = file(row.R1, checkIfExists: true)
           def r2 = file(row.R2, checkIfExists: true)
           def i2 = file(row.I2, checkIfExists: true)
-          return [ sample_id, r1, r2, i2 ]
+          def negative_R2_leading = row.negative_R2_leading
+          def positive_R2_leading = row.positive_R2_leading
+          def negative_R1_trailing = row.negative_R1_trailing
+          def positive_R1_trailing = row.positive_R1_trailing
+          return [ sample_id, r1, r2, i2, negative_R2_leading, positive_R2_leading, negative_R1_trailing, positive_R1_trailing ]
       }
       .set { ch_input_reads }
+
   ch_run_initial_read_processing = run_initial_read_processing(ch_input_reads)
   ch_process_paired_end_alignments = process_paired_end_alignments(ch_run_initial_read_processing.aligned).out
   ch_rescue_r2_reads = rescue_r2_reads(ch_run_initial_read_processing.bad_r2).out
