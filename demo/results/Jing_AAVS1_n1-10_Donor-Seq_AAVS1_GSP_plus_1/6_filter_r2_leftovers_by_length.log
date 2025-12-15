@@ -1,0 +1,14 @@
+This is cutadapt 5.1 with Python 3.11.14
+Command line parameters: -j 4 --minimum-length 25 --too-short-output r2_too_short -o r2_good_length combined_r2
+Processing single-end reads on 4 cores ...
+
+=== Summary ===
+
+Total reads processed:                   3,711
+
+== Read fate breakdown ==
+Reads that were too short:                 557 (15.0%)
+Reads written (passing filters):         3,154 (85.0%)
+
+Total basepairs processed:       259,572 bp
+Total written (filtered):        255,343 bp (98.4%)

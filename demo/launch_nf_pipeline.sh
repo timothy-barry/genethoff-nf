@@ -13,4 +13,4 @@ launch_dir="/Users/timbarry/research_code/genethoff-nf/demo/"
 nextflow pull timothy-barry/genethoff-nf
 nextflow run timothy-barry/genethoff-nf -r nature-revision \
 -c nextflow.config \
---conda_env $launch_dir"crisprde-venv.yaml"
+--conda_env guideseq-pipeline.yaml

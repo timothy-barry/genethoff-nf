@@ -1,4 +1,4 @@
-name: crisprde-venv
+name: guideseq-pipeline
 channels:
   - conda-forge
   - bioconda
