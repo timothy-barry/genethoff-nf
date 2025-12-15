@@ -6,8 +6,8 @@ process run_initial_read_processing {
   tag "Running initial read processing and alignment for ${sample_id}"
   publishDir "${params.outdir}/${sample_id}", mode: "copy", pattern: "*.log"
   cpus 4
-  memory 8.GB
-  time 20.m
+  memory 10.GB
+  time 60.m
   
   input:
   tuple val(sample_id), path("r1"), path("r2"), path("i2"), val("negative_R2_leading"), val("positive_R2_leading"), val("negative_R1_trailing"), val("positive_R1_trailing")
