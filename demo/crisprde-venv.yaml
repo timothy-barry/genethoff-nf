@@ -1,14 +1,3 @@
-# Donor-seq pipeline
-
-This is a pipeline for processing donor-seq data. Donor-seq is an assay for profiling the off-target editing activity of genome editors based on prime assembly (introduced in [Levesque et al 2025](https://www.biorxiv.org/content/10.1101/2025.06.16.659926v1)). This pipeline is a reworked, modified version of the [GENETHOFF](https://github.com/gcorre/GENETHOFF/releases) GUIDE-seq pipeline.
-
-## Requirements and installation
-
-You need to install Nextflow to run this pipeline, which you can do using the instructions [here](https://www.nextflow.io/docs/latest/install.html). You also will need to set up Nextflow to run on your cluster; instructions for doing so are [here](https://timothy-barry.github.io/sceptre-book/pipeline-args.html). The pipeline has been tested using Nextflow version `25.10.0 `. You also need to install `conda`; instructions for doing so are [here](https://docs.conda.io/projects/conda/en/stable/index.html). The pipeline has been tested using `conda` version `24.11.3`. Installing Nextflow and Conda typically takes less than 20 minutes.
-
-The pipeline depends on a conda environment called `crisprde-venv`. The `.yml` file for `crisprde-venv` is pasted below.
-
-```
 name: crisprde-venv
 channels:
   - conda-forge
@@ -342,15 +331,4 @@ dependencies:
   - pip:
       - et-xmlfile==2.0.0
       - openpyxl==3.1.5
-```
-
-Nextflow automatically will create this conda environment using the `.yml` file; thus, you do not need to manually download the software packages listed above.
-
-The pipeline was tested on a SLURM cluster running Red Hat Enterprise Linux version 9.6 and a Macbook Pro running macOS Sonoma version 14.5.
-
-**Tip (optional)**: To accelerate installation of the conda environment, we recommend installing `mamba`, a more efficient version of `conda`. `mamba` is included as part of most modern `conda` installations. Within your `.nextflow` config file (typically stored in `~/.nextflow/config`), add the line `conda.useMamba = true` to use `mamba` rather than `conda` within Nextflow.
-
-ALSO: reference genome.
-
-# Demo
-
+prefix: /home/tib163/.conda/envs/crisprde-venv
