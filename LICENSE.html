@@ -11,7 +11,7 @@
 
 
 
-<title>README</title>
+<title>LICENSE</title>
 
 <script>// Pandoc 2.9 adds attributes on both header and div. We remove the former (to
 // be compatible with the behavior of Pandoc < 2.8).
@@ -352,162 +352,36 @@ display: none;
 </div>
 
 
-<div id="donor-seq-pipeline" class="section level1">
-<h1>Donor-seq pipeline</h1>
-<p>This is a pipeline for processing donor-seq data. Donor-seq is an
-assay for profiling the off-target editing activity of genome editors
-based on prime assembly (introduced in <a href="https://www.biorxiv.org/content/10.1101/2025.06.16.659926v1">Levesque
-et al 2025</a>). This pipeline is a reworked, modified version of the <a href="https://github.com/gcorre/GENETHOFF/releases">GENETHOFF</a>
-GUIDE-seq pipeline.</p>
-<div id="requirements-and-installation" class="section level2">
-<h2>Requirements and installation</h2>
-<p>Install <code>Nextflow</code> using the instructions <a href="https://www.nextflow.io/docs/latest/install.html">here</a>. Next,
-set up Nextflow for your cluster using the instructions <a href="https://timothy-barry.github.io/sceptre-book/pipeline-args.html">here</a>.
-Install <code>conda</code> using the instructions <a href="https://docs.conda.io/projects/conda/en/stable/index.html">here</a>.
-Installing <code>Nextflow</code> and <code>conda</code> typically takes
-less than 20 minutes.</p>
-<p>The pipeline depends on a <code>conda</code> environment called
-<code>guideseq-pipeline</code>. The <code>.yml</code> file for
-<code>guideseq-pipeline</code> is pasted below (and is also present in
-this repository).</p>
-<pre><code>name: guideseq-pipeline
-channels:
-  - conda-forge
-  - bioconda
-  - defaults
-dependencies:
-  # Bioinformatics
-  - cutadapt=5.1
-  - bowtie2=2.5.4
-  - samtools=1.22.1
-  - bedtools=2.31.1
-  # R
-  - r-base=4.3
-  - r-dplyr=1.1.4
-  # Python
-  - python=3.11</code></pre>
-<p>Nextflow will try to automatically create this <code>conda</code>
-environment using the <code>.yml</code> file; thus, you should not need
-to manually download the software packages listed above.</p>
-<p>Finally, ensure that you have a reference genome (typically GRCh38)
-installed and indexed via <code>bowtie2</code>. For the best results,
-include only the main chromosomes from the primary assembly. The
-directory containing your reference genome should have the following
-files. (The file base name need not be
-<code>hg38_main_chroms</code>.)</p>
-<pre><code>hg38_main_chroms.1.bt2     hg38_main_chroms.3.bt2     hg38_main_chroms.fa        hg38_main_chroms.rev.1.bt2
-hg38_main_chroms.2.bt2     hg38_main_chroms.4.bt2     hg38_main_chroms.fa.fai    hg38_main_chroms.rev.2.bt2</code></pre>
-<p><strong>Tip (optional)</strong>: To accelerate installation of the
-<code>conda</code> environment, install <code>mamba</code>, a more
-efficient version of <code>conda</code>. <code>mamba</code> is included
-as part of most modern <code>conda</code> installations. Within your
-global <code>Nextflow</code> config file (typically stored in
-<code>~/.nextflow/config</code>), add the line
-<code>conda.useMamba = true</code> to use <code>mamba</code> rather than
-<code>conda</code> within Nextflow.</p>
-</div>
-<div id="software-testing" class="section level2">
-<h2>Software testing</h2>
-<p>The pipeline has been tested on a SLURM cluster running Red Hat
-Enterprise Linux version 9.6 and a Macbook Pro running macOS Sonoma
-version 14.5 using <code>Nextflow</code> version <code>25.10.0</code>
-and <code>conda</code> version <code>24.11.3</code>.</p>
-</div>
-<div id="demo" class="section level2">
-<h2>Demo</h2>
-<p>A demo dataset is contained within this repository. To access the
-demo dataset, first clone the repository.</p>
-<pre><code>git clone git@github.com:timothy-barry/genethoff-nf.git</code></pre>
-<p>Next, <code>cd</code> into the <code>genethoff-nf/demo</code>
-directory. This directory contains several data files and scripts. The
-data files are as follows:</p>
-<pre><code>Jing_AAVS1_n1-10_Donor-Seq_AAVS1_GSP_plus_1_I2_first10000.fastq
-Jing_AAVS1_n1-10_Donor-Seq_AAVS1_GSP_plus_1_R1_first10000.fastq
-Jing_AAVS1_n1-10_Donor-Seq_AAVS1_GSP_plus_1_R2_first10000.fastq
-Jing_AAVS1_n1-10_Donor-Seq_IL2RG_GSP_minus_1_I2_first10000.fastq
-Jing_AAVS1_n1-10_Donor-Seq_IL2RG_GSP_minus_1_R1_first10000.fastq
-Jing_AAVS1_n1-10_Donor-Seq_IL2RG_GSP_minus_1_R2_first10000.fastq</code></pre>
-<p>These files correspond to two donor-seq samples:
-<code>Jing_AAVS1_n1-10_Donor-Seq_AAVS1_GSP_plus</code> and
-<code>Jing_AAVS1_n1-10_Donor-Seq_IL2RG_GSP_minus</code>. Each sample has
-an associated R1, R2, and I2 file; R1 and R2 contain the paired-end
-reads, while I2 contains the UMI information. The pipeline assumes that
-the UMI is contained in the first nine bases of the I2 reads (although
-this default behavior can be modified).</p>
-<p>Next, <code>datasheet.tsv</code> is a tab-separated file storing
-sample metadata, with each row corresponding to a different sample.
-Columns <code>R1</code>, <code>R2</code>, and <code>I2</code> store the
-file paths to the R1, R2, and I2 files, respectively. (<em>Be sure to
-update these files paths</em>!) Further, <code>sample_id</code> is a
-string uniquely identifying the sample. Next,
-<code>negative_R2_leading</code> is the technical oligo at the beginning
-of the R2 read when using the negative primer;
-<code>positive_R2_leading</code> is the technical oligo at the beginning
-of the R2 read when using the positive primer; and
-<code>negative_R1_trailing</code> and <code>positive_R1_trailing</code>
-are the reverse complements of <code>negative_R2_leading</code> and
-<code>positive_R2_leading</code>, respectively.</p>
-<p>Next, <code>nextflow.config</code> is a config file storing the
-pipeline parameters. Briefly, <code>samplesheet</code>,
-<code>outdir</code>, and <code>index</code> store file paths to the
-samplesheet, results directory, and genome index directory,
-respectively. (<em>Be sure to update these files paths</em>!) Next,
-<code>min_length</code>, <code>min_frag_length</code>,
-<code>max_frag_length</code>, <code>min_mapq</code>, and
-<code>keep_multimapped_reads</code> are alignment parameters.
-Furthermore, <code>umi_length</code> and <code>umi_side</code> indicate
-where the pipeline is to look for the UMI within the I2 file.
-(<code>umi_length</code> is the length of the UMI, while
-<code>umi_side</code> is either <code>5</code> or <code>3</code>,
-indicating whether the UMI is on the 5’ or 3’ end of the read.) Finally,
-<code>R2_trailing</code> is the i5 Illumina adapter sequence. (In most
-GUIDE-seq protocols, the i5 Illumina adapter sequence
-<code>CTGTCTCTTATACAC</code>.)</p>
-<p>Finally, <code>launch.sh</code> is the launch script. (<em>Be sure to
-update the file path of the <code>.yml</code></em> <em>file!</em>). When
-running the pipeline locally, launch the pipeline via
-<code>bash launch_nf_pipeline.sh</code>; when running the pipeline on a
-SLURM cluster, launch the pipeline via
-<code>sbatch launch_nf_pipeline.sh</code>, etc. Resource allocation
-requests for the <code>Nextflow</code> driver should be issued at the
-top of this script.</p>
-</div>
-<div id="expected-output" class="section level2">
-<h2>Expected output</h2>
-<p>After running the pipeline, outputs should be written to the
-directory <code>genethoff-nf/demo/results</code>. The results directory
-contains two subdirectories — namely,
-<code>Jing_AAVS1_n1-10_Donor-Seq_AAVS1_GSP_plus_1</code> and
-<code>Jing_AAVS1_n1-10_Donor-Seq_IL2RG_GSP_minus_1</code> —
-corresponding to the two samples in the samplesheet. Each subdirectory
-contains <code>*.log</code> files containing plain-text information
-about how the pipeline ran and an <code>.rds</code> file storing the
-counts data frame. The <code>.rds</code> file can be opened in R via
-<code>readRDS()</code>. Each row corresponds to an “occupied base”, or a
-base to which at least one donor-seq read mapped. The columns are as
-follows:</p>
-<ul>
-<li><p><code>chr</code>: chromosome</p></li>
-<li><p><code>coord</code>: coordinate of the chromosome</p></li>
-<li><p><code>strand</code>: whether the donor-seq read mapped to the +
-or - strand</p></li>
-<li><p><code>umi_count</code>: UMI count of the base</p></li>
-<li><p><code>total_read_count</code>: total read count across the
-UMIs</p></li>
-<li><p><code>mean_mapq</code>: mean mapq score of the reads (before
-collapsing by UMI)</p></li>
-</ul>
-</div>
-<div id="expected-runtime" class="section level2">
-<h2>Expected runtime</h2>
-<p>When running this pipeline for the first time, Nextflow automatically
-will try to create a <code>guideseq-pipeline</code> <code>conda</code>
-environment. When using <code>mamba</code> (see “Requirements and
-installation”), the environment creation step should take under 10
-minutes. The pipeline itself should run in under two minutes (depending
-on how long it takes for jobs to get scheduled).</p>
-</div>
-</div>
+<p>Academic, non-commercial use only</p>
+<p>The license for this pipeline is the same as for the original
+GENETHOFF pipeline on which this pipeline is based. The original
+GENETHOFF license is pasted below.</p>
+<p>Permission is hereby granted, free of charge, to any person obtaining
+a copy of this pipeline, associated scripts and documentation files, to
+use, copy, modify, and distribute the Software solely for academic,
+non-commercial purposes, subject to the following conditions:</p>
+<p>Attribution: You must give appropriate credit to the authors, provide
+a link to the original repository, and indicate if changes were made.
+You may do so in any reasonable manner, but not in any way that suggests
+the authors endorse you or your use.</p>
+<p>Public Availability of Modifications: Any modifications or derivative
+works must be made publicly available under the same license terms as
+this original work.</p>
+<p>Non-Commercial Use: You may not use this Software for commercial
+purposes, including but not limited to sale, sub-licensing, or
+incorporation into a commercial product or service, without prior
+written permission from the authors.</p>
+<p>No Patent Use: You may not use this Software in any manner that is
+primarily intended for or directed toward patenting, commercialization,
+or the development of patented technology without prior written
+permission from the authors.</p>
+<p>No Warranty: The Software is provided “as is,” without warranty of
+any kind, express or implied, including but not limited to the
+warranties of merchantability, fitness for a particular purpose, and
+non-infringement. In no event shall the authors or copyright holders be
+liable for any claim, damages, or other liability, whether in an action
+of contract, tort, or otherwise, arising from, out of, or in connection
+with the Software or the use or other dealings in the Software.</p>
 
 
 

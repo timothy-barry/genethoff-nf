@@ -1,356 +1,172 @@
+---
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
 # Donor-seq pipeline
 
-This is a pipeline for processing donor-seq data. Donor-seq is an assay for profiling the off-target editing activity of genome editors based on prime assembly (introduced in [Levesque et al 2025](https://www.biorxiv.org/content/10.1101/2025.06.16.659926v1)). This pipeline is a reworked, modified version of the [GENETHOFF](https://github.com/gcorre/GENETHOFF/releases) GUIDE-seq pipeline.
+This is a pipeline for processing donor-seq data. Donor-seq is an assay
+for profiling the off-target editing activity of genome editors based on
+prime assembly (introduced in [Levesque et al
+2025](https://www.biorxiv.org/content/10.1101/2025.06.16.659926v1)).
+This pipeline is a reworked, modified version of the
+[GENETHOFF](https://github.com/gcorre/GENETHOFF/releases) GUIDE-seq
+pipeline.
 
 ## Requirements and installation
 
-You need to install Nextflow to run this pipeline, which you can do using the instructions [here](https://www.nextflow.io/docs/latest/install.html). You also will need to set up Nextflow to run on your cluster; instructions for doing so are [here](https://timothy-barry.github.io/sceptre-book/pipeline-args.html). The pipeline has been tested using Nextflow version `25.10.0 `. You also need to install `conda`; instructions for doing so are [here](https://docs.conda.io/projects/conda/en/stable/index.html). The pipeline has been tested using `conda` version `24.11.3`. Installing Nextflow and Conda typically takes less than 20 minutes.
+Install `Nextflow` using the instructions
+[here](https://www.nextflow.io/docs/latest/install.html). Next, set up
+Nextflow for your cluster using the instructions
+[here](https://timothy-barry.github.io/sceptre-book/pipeline-args.html).
+Install `conda` using the instructions
+[here](https://docs.conda.io/projects/conda/en/stable/index.html).
+Installing `Nextflow` and `conda` typically takes less than 20 minutes.
 
-The pipeline depends on a conda environment called `crisprde-venv`. The `.yml` file for `crisprde-venv` is pasted below.
+The pipeline depends on a `conda` environment called
+`guideseq-pipeline`. The `.yml` file for `guideseq-pipeline` is pasted
+below (and is also present in this repository).
 
-```
-name: crisprde-venv
+```         
+name: guideseq-pipeline
 channels:
   - conda-forge
   - bioconda
   - defaults
-  - nodefaults
 dependencies:
-  - _libgcc_mutex=0.1=conda_forge
-  - _openmp_mutex=4.5=2_gnu
-  - _r-mutex=1.0.1=anacondar_1
-  - amply=0.1.6=pyhd8ed1ab_1
-  - annotated-types=0.7.0=pyhd8ed1ab_1
-  - appdirs=1.4.4=pyhd8ed1ab_1
-  - argparse-dataclass=2.0.0=pyhd8ed1ab_0
-  - attrs=25.4.0=pyh71513ae_0
-  - bedtools=2.31.1=h13024bc_3
-  - binutils_impl_linux-64=2.44=h4bf12b8_1
-  - bowtie2=2.5.4=he96a11b_6
-  - brotli=1.1.0=hb03c661_4
-  - brotli-bin=1.1.0=hb03c661_4
-  - brotli-python=1.1.0=py311h1ddb823_4
-  - bwidget=1.10.1=ha770c72_1
-  - bzip2=1.0.8=hda65f42_8
-  - c-ares=1.34.5=hb9d3cd8_0
-  - ca-certificates=2025.11.12=hbd8a1cb_0
-  - cairo=1.18.4=h3394656_0
-  - certifi=2025.11.12=pyhd8ed1ab_0
-  - cffi=1.17.1=py311h5b438cf_1
-  - charset-normalizer=3.4.4=pyhd8ed1ab_0
-  - click=8.3.0=pyh707e725_0
-  - coin-or-cbc=2.10.12=h8b142ea_1
-  - coin-or-cgl=0.60.7=h516709c_0
-  - coin-or-clp=1.17.8=h1ee7a9c_0
-  - coin-or-osi=0.108.10=haf5fa05_0
-  - coin-or-utils=2.11.11=hee58242_0
-  - colorama=0.4.6=pyhd8ed1ab_1
-  - coloredlogs=15.0.1=pyhd8ed1ab_4
-  - conda-inject=1.3.2=pyhd8ed1ab_0
-  - configargparse=1.7.1=pyhe01879c_0
-  - connection_pool=0.0.3=pyhd3deb0d_0
-  - contourpy=1.3.3=py311hdf67eae_3
-  - crispresso2=2.3.3=py311h93dcfea_0
-  - curl=8.16.0=h4e3cde8_0
-  - cutadapt=5.1=py311haab0aaa_0
-  - cycler=0.12.1=pyhd8ed1ab_1
-  - dnaio=1.2.2=py311hdad781d_0
-  - docutils=0.22.2=pyhd8ed1ab_0
-  - dpath=2.2.0=pyha770c72_0
-  - eido=0.2.4=pyhd8ed1ab_0
-  - entrez-direct=24.0=he881be0_0
-  - exceptiongroup=1.3.0=pyhd8ed1ab_0
-  - fastp=1.0.1=heae3180_0
-  - font-ttf-dejavu-sans-mono=2.37=hab24e00_0
-  - font-ttf-inconsolata=3.000=h77eed37_0
-  - font-ttf-source-code-pro=2.038=h77eed37_0
-  - font-ttf-ubuntu=0.83=h77eed37_3
-  - fontconfig=2.15.0=h7e30c49_1
-  - fonts-conda-ecosystem=1=0
-  - fonts-conda-forge=1=0
-  - fonttools=4.60.1=py311h3778330_0
-  - freetype=2.14.1=ha770c72_0
-  - fribidi=1.0.16=hb03c661_0
-  - gcc_impl_linux-64=15.1.0=h4393ad2_5
-  - gfortran_impl_linux-64=15.1.0=h3b9cdf2_5
-  - gitdb=4.0.12=pyhd8ed1ab_0
-  - gitpython=3.1.45=pyhff2d567_0
-  - graphite2=1.3.14=hecca717_2
-  - gsl=2.7=he838d99_0
-  - gxx_impl_linux-64=15.1.0=h6a1bac1_5
-  - h2=4.3.0=pyhcf101f3_0
-  - harfbuzz=12.1.0=h15599e2_0
-  - hpack=4.1.0=pyhd8ed1ab_0
-  - htslib=1.22.1=h566b1c6_0
-  - humanfriendly=10.0=pyh707e725_8
-  - hyperframe=6.1.0=pyhd8ed1ab_0
-  - icu=75.1=he02047a_0
-  - idna=3.11=pyhd8ed1ab_0
-  - immutables=0.21=py311h49ec1c0_2
-  - iniconfig=2.3.0=pyhd8ed1ab_0
-  - isa-l=2.31.1=hb9d3cd8_1
-  - jinja2=3.1.6=pyhd8ed1ab_0
-  - jsonschema=4.25.1=pyhe01879c_0
-  - jsonschema-specifications=2025.9.1=pyhcf101f3_0
-  - jupyter_core=5.9.1=pyhc90fa1f_0
-  - kernel-headers_linux-64=5.14.0=he073ed8_2
-  - keyutils=1.6.3=hb9d3cd8_0
-  - kiwisolver=1.4.9=py311h724c32c_2
-  - krb5=1.21.3=h659f571_0
-  - lcms2=2.17=h717163a_0
-  - ld_impl_linux-64=2.44=h1423503_1
-  - lerc=4.0.0=h0aef613_1
-  - levenshtein=0.27.1=py311h1ddb823_1
-  - libblas=3.9.0=35_h4a7cf45_openblas
-  - libbrotlicommon=1.1.0=hb03c661_4
-  - libbrotlidec=1.1.0=hb03c661_4
-  - libbrotlienc=1.1.0=hb03c661_4
-  - libcblas=3.9.0=35_h0358290_openblas
-  - libcurl=8.16.0=h4e3cde8_0
-  - libdeflate=1.24=h86f0d12_0
-  - libedit=3.1.20250104=pl5321h7949ede_0
-  - libev=4.33=hd590300_2
-  - libexpat=2.7.1=hecca717_0
-  - libffi=3.4.6=h2dba641_1
-  - libfreetype=2.14.1=ha770c72_0
-  - libfreetype6=2.14.1=h73754d4_0
-  - libgcc=15.1.0=h767d61c_5
-  - libgcc-devel_linux-64=15.1.0=h4c094af_105
-  - libgcc-ng=15.1.0=h69a702a_5
-  - libgfortran=15.1.0=h69a702a_5
-  - libgfortran-ng=15.1.0=h69a702a_5
-  - libgfortran5=15.1.0=hcea5267_5
-  - libglib=2.86.0=h1fed272_0
-  - libgomp=15.1.0=h767d61c_5
-  - libiconv=1.18=h3b78370_2
-  - libidn2=2.3.8=hfac485b_1
-  - libjpeg-turbo=3.1.0=hb9d3cd8_0
-  - liblapack=3.9.0=35_h47877c9_openblas
-  - liblapacke=3.9.0=35_h6ae95b6_openblas
-  - liblzma=5.8.1=hb9d3cd8_2
-  - liblzma-devel=5.8.1=hb9d3cd8_2
-  - libnghttp2=1.67.0=had1ee68_0
-  - libnsl=2.0.1=hb9d3cd8_1
-  - libopenblas=0.3.30=pthreads_h94d23a6_2
-  - libpng=1.6.50=h421ea60_1
-  - libsanitizer=15.1.0=h97b714f_5
-  - libsqlite=3.46.0=hde9e2c9_0
-  - libssh2=1.11.1=hcf80075_0
-  - libstdcxx=15.1.0=h8f9b012_5
-  - libstdcxx-devel_linux-64=15.1.0=h4c094af_105
-  - libstdcxx-ng=15.1.0=h4852527_5
-  - libtiff=4.7.1=h8261f1e_0
-  - libunistring=0.9.10=h7f98852_0
-  - libuuid=2.41.1=he9a06e4_0
-  - libwebp-base=1.6.0=hd42ef1d_0
-  - libxcb=1.17.0=h8a09558_0
-  - libxcrypt=4.4.36=hd590300_1
-  - libxml2=2.15.1=h26afc86_0
-  - libxml2-16=2.15.1=ha9997c6_0
-  - libzlib=1.3.1=hb9d3cd8_2
-  - logmuse=0.2.8=pyhd8ed1ab_1
-  - make=4.4.1=hb9d3cd8_2
-  - markdown-it-py=4.0.0=pyhd8ed1ab_0
-  - markupsafe=3.0.3=py311h3778330_0
-  - matplotlib-base=3.10.7=py311h0f3be63_0
-  - mdurl=0.1.2=pyhd8ed1ab_1
-  - munkres=1.1.4=pyhd8ed1ab_1
-  - narwhals=2.10.2=pyhcf101f3_0
-  - nbformat=5.10.4=pyhd8ed1ab_1
-  - ncbi-vdb=3.2.1=h9948957_0
-  - ncurses=6.5=h2d0b736_3
-  - numpy=1.26.4=py311h64a7726_0
-  - openjpeg=2.5.4=h55fea9a_0
-  - openssl=3.6.0=h26f9b46_0
-  - ossuuid=1.6.2=h5888daf_1001
-  - packaging=25.0=pyh29332c3_1
-  - pandas=2.3.3=py311hed34c8f_1
-  - pango=1.56.4=hadf4263_0
-  - pbzip2=1.1.13=h1fcc475_2
-  - pcre2=10.46=h1321c63_0
-  - pephubclient=0.4.4=pyhd8ed1ab_1
-  - peppy=0.40.7=pyhd8ed1ab_2
-  - perl=5.32.1=7_hd590300_perl5
-  - perl-alien-build=2.84=pl5321h7b50bb2_1
-  - perl-alien-libxml2=0.17=pl5321h577a1d6_1
-  - perl-app-cpanminus=1.7048=pl5321hd8ed1ab_0
-  - perl-business-isbn=3.007=pl5321hd8ed1ab_0
-  - perl-business-isbn-data=20210112.006=pl5321hd8ed1ab_0
-  - perl-capture-tiny=0.48=pl5321ha770c72_1
-  - perl-carp=1.50=pl5321hd8ed1ab_0
-  - perl-constant=1.33=pl5321hd8ed1ab_0
-  - perl-data-dumper=2.183=pl5321hb9d3cd8_1
-  - perl-encode=3.21=pl5321hb9d3cd8_1
-  - perl-exporter=5.74=pl5321hd8ed1ab_0
-  - perl-extutils-makemaker=7.70=pl5321hd8ed1ab_0
-  - perl-ffi-checklib=0.28=pl5321hdfd78af_0
-  - perl-file-chdir=0.1011=pl5321hd8ed1ab_0
-  - perl-file-path=2.18=pl5321hd8ed1ab_0
-  - perl-file-temp=0.2304=pl5321hd8ed1ab_0
-  - perl-file-which=1.24=pl5321hd8ed1ab_0
-  - perl-importer=0.026=pl5321hd8ed1ab_0
-  - perl-mime-base64=3.16=pl5321hb9d3cd8_3
-  - perl-parent=0.243=pl5321hd8ed1ab_0
-  - perl-path-tiny=0.124=pl5321hd8ed1ab_0
-  - perl-pathtools=3.75=pl5321hb9d3cd8_2
-  - perl-scope-guard=0.21=pl5321hd8ed1ab_0
-  - perl-storable=3.15=pl5321hb9d3cd8_2
-  - perl-sub-info=0.002=pl5321hd8ed1ab_0
-  - perl-term-table=0.025=pl5321hdfd78af_0
-  - perl-test-fatal=0.016=pl5321ha770c72_0
-  - perl-test-warnings=0.031=pl5321ha770c72_0
-  - perl-test2-suite=0.000163=pl5321hdfd78af_0
-  - perl-try-tiny=0.31=pl5321ha770c72_0
-  - perl-uri=5.34=pl5321ha770c72_0
-  - perl-xml-libxml=2.0210=pl5321hf886d80_0
-  - perl-xml-namespacesupport=1.12=pl5321hd8ed1ab_0
-  - perl-xml-sax=1.02=pl5321hd8ed1ab_0
-  - perl-xml-sax-base=1.09=pl5321hd8ed1ab_0
-  - perl-xsloader=0.24=pl5321hd8ed1ab_0
-  - pigz=2.8=h2797004_0
-  - pillow=12.0.0=py311h07c5bb8_0
-  - pip=25.2=pyh8b19718_0
-  - pixman=0.46.4=h54a6638_1
-  - plac=1.4.5=pyhd8ed1ab_0
-  - platformdirs=4.5.0=pyhcf101f3_0
-  - plotly=6.4.0=pyhd8ed1ab_0
-  - pluggy=1.6.0=pyhd8ed1ab_0
-  - psutil=7.1.1=py311h49ec1c0_0
-  - pthread-stubs=0.4=hb9d3cd8_1002
-  - pulp=2.8.0=py311h77a8cca_3
-  - pycparser=2.22=pyh29332c3_1
-  - pydantic=2.12.3=pyh3cfb1c2_0
-  - pydantic-core=2.41.4=py311h902ca64_0
-  - pygments=2.19.2=pyhd8ed1ab_0
-  - pyparsing=3.2.5=pyhcf101f3_0
-  - pysocks=1.7.1=pyha55dd90_7
-  - pytest=8.4.2=pyhd8ed1ab_0
-  - python=3.11.9=hb806964_0_cpython
-  - python-dateutil=2.9.0.post0=pyhe01879c_2
-  - python-fastjsonschema=2.21.2=pyhe01879c_0
-  - python-isal=1.8.0=py311h49ec1c0_0
-  - python-tzdata=2025.2=pyhd8ed1ab_0
-  - python-zlib-ng=1.0.0=py311h0c508dd_0
-  - python_abi=3.11=8_cp311
-  - pytz=2025.2=pyhd8ed1ab_0
-  - pyyaml=6.0.3=py311h3778330_0
-  - qhull=2020.2=h434a139_5
-  - r-assertthat=0.2.1=r45hc72bb7e_6
-  - r-base=4.5.1=h14df4e6_3
-  - r-bit=4.6.0=r45h54b55ab_1
-  - r-bit64=4.6.0_1=r45h54b55ab_1
-  - r-cachem=1.1.0=r45h54b55ab_2
-  - r-cli=3.6.5=r45h3697838_1
-  - r-clipr=0.8.0=r45hc72bb7e_4
-  - r-conflicted=1.2.0=r45h785f33e_3
-  - r-cpp11=0.5.2=r45h785f33e_2
-  - r-crayon=1.5.3=r45hc72bb7e_2
-  - r-dplyr=1.1.4=r45h3697838_2
-  - r-ellipsis=0.3.2=r45h54b55ab_4
-  - r-fansi=1.0.6=r45h54b55ab_2
-  - r-fastmap=1.2.0=r45h3697838_2
-  - r-generics=0.1.4=r45hc72bb7e_1
-  - r-glue=1.8.0=r45h54b55ab_1
-  - r-hms=1.1.4=r45hc72bb7e_0
-  - r-lifecycle=1.0.4=r45hc72bb7e_2
-  - r-magrittr=2.0.4=r45h54b55ab_0
-  - r-memoise=2.0.1=r45hc72bb7e_4
-  - r-openxlsx=4.2.8=r45h3697838_2
-  - r-pillar=1.11.1=r45hc72bb7e_0
-  - r-pkgconfig=2.0.3=r45hc72bb7e_5
-  - r-prettyunits=1.2.0=r45hc72bb7e_2
-  - r-progress=1.2.3=r45hc72bb7e_2
-  - r-r6=2.6.1=r45hc72bb7e_1
-  - r-rcpp=1.1.0=r45h3697838_1
-  - r-readr=2.1.6=r45h3697838_0
-  - r-rlang=1.1.6=r45h3697838_1
-  - r-stringi=1.8.7=r45h2dae267_1
-  - r-tibble=3.3.0=r45h54b55ab_1
-  - r-tidyselect=1.2.1=r45hc72bb7e_2
-  - r-tzdb=0.5.0=r45h3697838_2
-  - r-utf8=1.2.6=r45h54b55ab_1
-  - r-vctrs=0.6.5=r45h3697838_2
-  - r-vroom=1.6.6=r45h3697838_0
-  - r-withr=3.0.2=r45hc72bb7e_1
-  - r-zip=2.3.3=r45h54b55ab_1
-  - rapidfuzz=3.14.1=py311h1ddb823_0
-  - readline=8.2=h8c095d6_2
-  - referencing=0.37.0=pyhcf101f3_0
-  - requests=2.32.5=pyhd8ed1ab_0
-  - reretry=0.11.8=pyhd8ed1ab_1
-  - rich=14.2.0=pyhcf101f3_0
-  - rpds-py=0.27.1=py311h902ca64_1
-  - samtools=1.22.1=h96c455f_0
-  - scipy=1.16.3=py311h1e13796_0
-  - seaborn-base=0.13.2=pyhd8ed1ab_3
-  - sed=4.9=h6688a6e_0
-  - setuptools=80.9.0=pyhff2d567_0
-  - shellingham=1.5.4=pyhd8ed1ab_1
-  - six=1.17.0=pyhe01879c_1
-  - slack-sdk=3.37.0=pyhd8ed1ab_0
-  - slack_sdk=3.37.0=hd8ed1ab_0
-  - smart_open=7.3.1=pyhcf101f3_0
-  - smmap=5.0.2=pyhd8ed1ab_0
-  - snakemake=9.13.3=hdfd78af_0
-  - snakemake-interface-common=1.22.0=pyhd4c3c12_0
-  - snakemake-interface-executor-plugins=9.3.9=pyhdfd78af_0
-  - snakemake-interface-logger-plugins=1.2.4=pyhdfd78af_0
-  - snakemake-interface-report-plugins=1.2.0=pyhdfd78af_0
-  - snakemake-interface-scheduler-plugins=2.0.1=pyhd4c3c12_0
-  - snakemake-interface-storage-plugins=4.2.3=pyhd4c3c12_0
-  - snakemake-minimal=9.13.3=pyhdfd78af_0
-  - sra-tools=3.2.1=h4304569_1
-  - sysroot_linux-64=2.34=h087de78_2
-  - tabulate=0.9.0=pyhd8ed1ab_2
-  - throttler=1.2.2=pyhd8ed1ab_0
-  - tk=8.6.13=noxft_h4845f30_101
-  - tktable=2.10=h8d826fa_7
-  - tomli=2.3.0=pyhcf101f3_0
-  - traitlets=5.14.3=pyhd8ed1ab_1
-  - typer=0.19.2=pyhef33e25_0
-  - typer-slim=0.19.2=pyhcf101f3_0
-  - typer-slim-standard=0.19.2=h6e3bb38_0
-  - typing-extensions=4.15.0=h396c80c_0
-  - typing-inspection=0.4.2=pyhd8ed1ab_0
-  - typing_extensions=4.15.0=pyhcf101f3_0
-  - tzdata=2025b=h78e105d_0
-  - ubiquerg=0.8.0=pyhd8ed1ab_0
-  - unicodedata2=17.0.0=py311h49ec1c0_0
-  - urllib3=2.5.0=pyhd8ed1ab_0
-  - veracitools=0.1.3=py_0
-  - wget=1.21.4=hda4d442_0
-  - wheel=0.45.1=pyhd8ed1ab_1
-  - wrapt=1.17.3=py311h49ec1c0_1
-  - xopen=2.0.2=pyh707e725_2
-  - xorg-libice=1.1.2=hb9d3cd8_0
-  - xorg-libsm=1.2.6=he73a12e_0
-  - xorg-libx11=1.8.12=h4f16b4b_0
-  - xorg-libxau=1.0.12=hb9d3cd8_0
-  - xorg-libxdmcp=1.1.5=hb9d3cd8_0
-  - xorg-libxext=1.3.6=hb9d3cd8_0
-  - xorg-libxrender=0.9.12=hb9d3cd8_0
-  - xorg-libxt=1.3.1=hb9d3cd8_0
-  - xz=5.8.1=hbcc6ac9_2
-  - xz-gpl-tools=5.8.1=hbcc6ac9_2
-  - xz-tools=5.8.1=hb9d3cd8_2
-  - yaml=0.2.5=h280c20c_3
-  - yte=1.8.1=pyha770c72_0
-  - zlib=1.3.1=hb9d3cd8_2
-  - zlib-ng=2.2.5=hde8ca8f_0
-  - zstandard=0.23.0=py311h49ec1c0_3
-  - zstd=1.5.7=hb8e6e7a_2
-  - pip:
-      - et-xmlfile==2.0.0
-      - openpyxl==3.1.5
+  # Bioinformatics
+  - cutadapt=5.1
+  - bowtie2=2.5.4
+  - samtools=1.22.1
+  - bedtools=2.31.1
+  # R
+  - r-base=4.3
+  - r-dplyr=1.1.4
+  # Python
+  - python=3.11
 ```
 
-Nextflow automatically will create this conda environment using the `.yml` file; thus, you do not need to manually download the software packages listed above.
+Nextflow will try to automatically create this `conda` environment using
+the `.yml` file; thus, you should not need to manually download the
+software packages listed above.
 
-The pipeline was tested on a SLURM cluster running Red Hat Enterprise Linux version 9.6 and a Macbook Pro running macOS Sonoma version 14.5.
+Finally, ensure that you have a reference genome (typically GRCh38)
+installed and indexed via `bowtie2`. For the best results, include only
+the main chromosomes from the primary assembly. The directory containing
+your reference genome should have the following files. (The file base
+name need not be `hg38_main_chroms`.)
 
-**Tip (optional)**: To accelerate installation of the conda environment, we recommend installing `mamba`, a more efficient version of `conda`. `mamba` is included as part of most modern `conda` installations. Within your `.nextflow` config file (typically stored in `~/.nextflow/config`), add the line `conda.useMamba = true` to use `mamba` rather than `conda` within Nextflow.
+```         
+hg38_main_chroms.1.bt2     hg38_main_chroms.3.bt2     hg38_main_chroms.fa        hg38_main_chroms.rev.1.bt2
+hg38_main_chroms.2.bt2     hg38_main_chroms.4.bt2     hg38_main_chroms.fa.fai    hg38_main_chroms.rev.2.bt2
+```
 
-ALSO: reference genome.
+**Tip (optional)**: To accelerate installation of the `conda`
+environment, install `mamba`, a more efficient version of `conda`.
+`mamba` is included as part of most modern `conda` installations. Within
+your global `Nextflow` config file (typically stored in
+`~/.nextflow/config`), add the line `conda.useMamba = true` to use
+`mamba` rather than `conda` within Nextflow.
 
-# Demo
+## Software testing
 
+The pipeline has been tested on a SLURM cluster running Red Hat
+Enterprise Linux version 9.6 and a Macbook Pro running macOS Sonoma
+version 14.5 using `Nextflow` version `25.10.0` and `conda` version
+`24.11.3`.
+
+## Demo
+
+A demo dataset is contained within this repository. To access the demo
+dataset, first clone the repository.
+
+```         
+git clone git@github.com:timothy-barry/genethoff-nf.git
+```
+
+Next, `cd` into the `genethoff-nf/demo` directory. This directory
+contains several data files and scripts. The data files are as follows:
+
+```         
+Jing_AAVS1_n1-10_Donor-Seq_AAVS1_GSP_plus_1_I2_first10000.fastq
+Jing_AAVS1_n1-10_Donor-Seq_AAVS1_GSP_plus_1_R1_first10000.fastq
+Jing_AAVS1_n1-10_Donor-Seq_AAVS1_GSP_plus_1_R2_first10000.fastq
+Jing_AAVS1_n1-10_Donor-Seq_IL2RG_GSP_minus_1_I2_first10000.fastq
+Jing_AAVS1_n1-10_Donor-Seq_IL2RG_GSP_minus_1_R1_first10000.fastq
+Jing_AAVS1_n1-10_Donor-Seq_IL2RG_GSP_minus_1_R2_first10000.fastq
+```
+
+These files correspond to two donor-seq samples:
+`Jing_AAVS1_n1-10_Donor-Seq_AAVS1_GSP_plus` and
+`Jing_AAVS1_n1-10_Donor-Seq_IL2RG_GSP_minus`. Each sample has an
+associated R1, R2, and I2 file; R1 and R2 contain the paired-end reads,
+while I2 contains the UMI information. The pipeline assumes that the UMI
+is contained in the first nine bases of the I2 reads (although this
+default behavior can be modified).
+
+Next, `datasheet.tsv` is a tab-separated file storing sample metadata,
+with each row corresponding to a different sample. Columns `R1`, `R2`,
+and `I2` store the file paths to the R1, R2, and I2 files, respectively.
+(*Be sure to update these files paths*!) Further, `sample_id` is a
+string uniquely identifying the sample. Next, `negative_R2_leading` is
+the technical oligo at the beginning of the R2 read when using the
+negative primer; `positive_R2_leading` is the technical oligo at the
+beginning of the R2 read when using the positive primer; and
+`negative_R1_trailing` and `positive_R1_trailing` are the reverse
+complements of `negative_R2_leading` and `positive_R2_leading`,
+respectively.
+
+Next, `nextflow.config` is a config file storing the pipeline
+parameters. Briefly, `samplesheet`, `outdir`, and `index` store file
+paths to the samplesheet, results directory, and genome index directory,
+respectively. (*Be sure to update these files paths*!) Next,
+`min_length`, `min_frag_length`, `max_frag_length`, `min_mapq`, and
+`keep_multimapped_reads` are alignment parameters. Furthermore,
+`umi_length` and `umi_side` indicate where the pipeline is to look for
+the UMI within the I2 file. (`umi_length` is the length of the UMI,
+while `umi_side` is either `5` or `3`, indicating whether the UMI is on
+the 5' or 3' end of the read.) Finally, `R2_trailing` is the i5 Illumina
+adapter sequence. (In most GUIDE-seq protocols, the i5 Illumina adapter
+sequence `CTGTCTCTTATACAC`.)
+
+Finally, `launch.sh` is the launch script. (*Be sure to update the file
+path of the `.yml`* *file!*). When running the pipeline locally, launch
+the pipeline via `bash launch_nf_pipeline.sh`; when running the pipeline
+on a SLURM cluster, launch the pipeline via
+`sbatch launch_nf_pipeline.sh`, etc. Resource allocation requests for
+the `Nextflow` driver should be issued at the top of this script.
+
+## Expected output
+
+After running the pipeline, outputs should be written to the directory
+`genethoff-nf/demo/results`. The results directory contains two
+subdirectories --- namely, `Jing_AAVS1_n1-10_Donor-Seq_AAVS1_GSP_plus_1`
+and `Jing_AAVS1_n1-10_Donor-Seq_IL2RG_GSP_minus_1` --- corresponding to
+the two samples in the samplesheet. Each subdirectory contains `*.log`
+files containing plain-text information about how the pipeline ran and
+an `.rds` file storing the counts data frame. The `.rds` file can be
+opened in R via `readRDS()`. Each row corresponds to an "occupied base",
+or a base to which at least one donor-seq read mapped. The columns are
+as follows:
+
+-   `chr`: chromosome
+
+-   `coord`: coordinate of the chromosome
+
+-   `strand`: whether the donor-seq read mapped to the + or - strand
+
+-   `umi_count`: UMI count of the base
+
+-    `total_read_count`: total read count across the UMIs
+
+-   `mean_mapq`: mean mapq score of the reads (before collapsing by UMI)
+
+## Expected runtime
+
+When running this pipeline for the first time, Nextflow automatically
+will try to create a `guideseq-pipeline` `conda` environment. When using
+`mamba` (see "Requirements and installation"), the environment creation
+step should take under 10 minutes. The pipeline itself should run in
+under two minutes (depending on how long it takes for jobs to get
+scheduled).

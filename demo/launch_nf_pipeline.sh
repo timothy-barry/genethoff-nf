@@ -8,9 +8,7 @@
 #SBATCH --partition=short
 #SBATCH -c 4
 
-launch_dir="/Users/timbarry/research_code/genethoff-nf/demo/"
-
 nextflow pull timothy-barry/genethoff-nf
 nextflow run timothy-barry/genethoff-nf -r nature-revision \
 -c nextflow.config \
---conda_env guideseq-pipeline.yaml
+--conda_env "/Users/timbarry/research_code/genethoff-nf/demo/guideseq-pipeline.yaml"
