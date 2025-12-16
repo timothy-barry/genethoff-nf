@@ -1,3 +1,4 @@
+Paired end alignment QC
 Number of reads passing post-alignment quality control:     4398
-Number of reads 2 plus alignments good mapq: 4
 Number of reads 1 alignment good mapq: 4394
+Number of reads 2 plus alignments good mapq: 4
