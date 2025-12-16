@@ -1,2 +1,3 @@
-Number of reads passing post-alignment quality control: 
-1655
+Number of reads passing post-alignment quality control: 1655
+Number of reads 2 plus alignments good mapq: 0
+Number of reads 1 alignment good mapq: 1655

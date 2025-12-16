@@ -24,7 +24,6 @@ process run_initial_read_processing {
   script:
   """
   # step A: extract the UMI
-  
   if [ "${params.umi_side}" = "5" ]; then
       cutadapt -j ${task.cpus} -u ${params.umi_length} --rename='{id}_{r1.cut_prefix} {comment}' -o i2_out_umi -p r1_out_umi $i2 $r1 > extract_umi_r1.log
       cutadapt -j ${task.cpus} -u ${params.umi_length} --rename='{id}_{r1.cut_prefix} {comment}' -o i2_out_umi -p r2_out_umi $i2 $r2 > extract_umi_r2.log
@@ -34,7 +33,6 @@ process run_initial_read_processing {
   fi
   
   # step B: trim the dsODN tag
-  
   cutadapt -j ${task.cpus} \
   -G "negative=$negative_R2_leading;max_error_rate=0.02;rightmost" \
   -G "positive=$positive_R2_leading;max_error_rate=0.02;rightmost" \
@@ -43,7 +41,6 @@ process run_initial_read_processing {
   -o r1_out_odn -p r2_out_odn r1_out_umi r2_out_umi > 1_trim_5_prime_tag.log
   
   # step C: trim the adapter sequences
-  
   cutadapt -j ${task.cpus} \
   -A "${params.primer.R2_trailing};min_overlap=6;max_error_rate=0.1" \
   -a "$positive_R1_trailing;min_overlap=6;max_error_rate=0.1" \
@@ -51,7 +48,6 @@ process run_initial_read_processing {
   -o r1_out_adapter_trim -p r2_out_adapter_trim r1_out_odn r2_out_odn > 2_trim_3_prime_adapter.log
   
   # step D: remove reads that are too short
-  
   cutadapt -j ${task.cpus} \
   --pair-filter=any \
   --minimum-length ${params.min_length} \
@@ -61,8 +57,7 @@ process run_initial_read_processing {
   -p r2_length_filtered \
   r1_out_adapter_trim r2_out_adapter_trim > 3_filter_by_length.log
   
-  # step E
-  
+  # step E: align to genome and compute quality metrics
   bowtie2 -p ${task.cpus} --no-unal \
   -I ${params.min_frag_length} \
   -X ${params.max_frag_length} \
@@ -91,26 +86,30 @@ process process_paired_end_alignments {
   path("5_paired_end_alignment_qc.log")
 
   """
-  # step A: filter reads based on quality
+  # step A: compute quality metrics
+  n_reads_2_plus_alignments_good_mapq_2x=\$(samtools view -h ${alignment} -d 'XS:' -q ${params.min_mapq} -c)
+  n_reads_2_plus_alignments_good_mapq=\$((\$n_reads_2_plus_alignments_good_mapq_2x/2))
+  n_reads_1_alignment_good_mapq_2x=\$(samtools view -h ${alignment} | grep -v 'XS:' | samtools view -q ${params.min_mapq} -c)
+  n_reads_1_alignment_good_mapq=\$((\$n_reads_1_alignment_good_mapq_2x/2))
   
+  # step B: filter reads based on quality
   # fork on whether to keep multimapping reads or not
   if [ "${params.keep_multimapped_reads}" = "true" ]; then
     samtools view ${alignment} -e '( (mapq == 1 && [AS] == [XS]) || (mapq >=${params.min_mapq}) )' | cut -f1 | sort | uniq  > filtered_reads.txt
   else
     samtools view ${alignment} -e '(mapq >=${params.min_mapq})' | cut -f1 | sort | uniq  > filtered_reads.txt
   fi
+  n_reads_passing_qc=\$(cat filtered_reads.txt | wc -l)
+  echo "Number of reads passing post-alignment quality control: \$n_reads_passing_qc" >> 5_paired_end_alignment_qc.log
+  echo "Number of reads 2 plus alignments good mapq: \$n_reads_2_plus_alignments_good_mapq" >> 5_paired_end_alignment_qc.log
+  echo "Number of reads 1 alignment good mapq: \$n_reads_1_alignment_good_mapq" >> 5_paired_end_alignment_qc.log
   
-  echo "Number of reads passing post-alignment quality control: " >> 5_paired_end_alignment_qc.log
-  cat filtered_reads.txt | wc -l >> 5_paired_end_alignment_qc.log
-  
-  # step B: sort and index bam file
-  
+  # step C: sort and index bam file
   samtools sort -@ ${task.cpus} ${alignment} > output.bamPos
   samtools view -hb --qname-file filtered_reads.txt output.bamPos > output.bam
   samtools index output.bam
   
-  # step C: count number of reads per base
-  
+  # step D: count number of reads per base
   bedtools bamtobed -bedpe -mate1 -i output.bam > output.tmp
   awk 'BEGIN{OFS="\\t";FS="\\t"} (\$1 == \$4) {split(\$7,a,"_"); if(\$10=="+") print \$4,\$5,\$5,a[1],a[2],a[3],\$8,\$10,\$3-\$5; else print \$4,\$6-1,\$6-1,a[1],a[2],a[3],\$8,\$10,\$6-\$2}' output.tmp | sort -k1,1 -k2,3n -k6,6 -k5,5 -k8,8 | bedtools groupby -g 1,2,3,6,5,8 -c 4,7 -o count_distinct,mean  > output.umi
   """
@@ -137,7 +136,6 @@ process rescue_r2_reads {
   """
   # step A: combine r2_short, r2_unmapped into a single fastq file; filer on read length
   cat ${r2_short} ${r2_unmapped} > combined_r2
-  
   cutadapt -j ${task.cpus} \
   --minimum-length ${params.min_length} \
   --too-short-output r2_too_short \
@@ -148,6 +146,8 @@ process rescue_r2_reads {
   bowtie2 -p ${task.cpus} --no-unal \
   -x ${params.index} \
   -U r2_good_length -S r2_alignment.sam 2> 7_align_r2_reads.log
+  n_reads_2_plus_alignments_good_mapq=\$(samtools view -h r2_alignment.sam -d 'XS:' -q ${params.min_mapq} -c)
+  n_reads_1_alignment_good_mapq=\$(samtools view -h r2_alignment.sam | grep -v 'XS:' | samtools view -q ${params.min_mapq} -c)
   
   # step C: filter reads based on alignment quality
   # fork on whether read is multimapped
@@ -159,8 +159,10 @@ process rescue_r2_reads {
     
   # step D: sort and index alignment file
   samtools index r2_alignment_sorted
-  echo "Number of reads passing post-alignment quality control: " >> 8_r2_alignment_qc.log
-  (samtools view -c -F 260 r2_alignment_sorted) >> 8_r2_alignment_qc.log
+  n_reads_passing_qc=\$(samtools view r2_alignment_sorted -c)
+  echo "Number of reads passing post-alignment quality control: \$n_reads_passing_qc" >> 8_r2_alignment_qc.log
+  echo "Number of reads 2 plus alignments good mapq: \$n_reads_2_plus_alignments_good_mapq" >> 8_r2_alignment_qc.log
+  echo "Number of reads 1 alignment good mapq: \$n_reads_1_alignment_good_mapq" >> 8_r2_alignment_qc.log
   
   # step E: count number of reads per base
   bedtools bamtobed -i r2_alignment_sorted > output.tmp
@@ -206,6 +208,7 @@ workflow {
       .set { ch_input_reads }
 
   ch_run_initial_read_processing = run_initial_read_processing(ch_input_reads)
+  view(ch_run_initial_read_processing.aligned)
   ch_process_paired_end_alignments = process_paired_end_alignments(ch_run_initial_read_processing.aligned).out
   ch_rescue_r2_reads = rescue_r2_reads(ch_run_initial_read_processing.bad_r2).out
   joined_ch = ch_process_paired_end_alignments.join(ch_rescue_r2_reads)
