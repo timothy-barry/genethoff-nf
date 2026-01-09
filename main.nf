@@ -7,7 +7,7 @@ process run_initial_read_processing {
   publishDir "${params.outdir}/${sample_id}", mode: "copy", pattern: "*.log"
   cpus 4
   memory 8.GB
-  time 90.m
+  time 8.h
 
   input:
   tuple val(sample_id), path("r1"), path("r2"), path("i2"), val("negative_R2_leading"), val("positive_R2_leading"), val("negative_R1_trailing"), val("positive_R1_trailing")
