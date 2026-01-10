@@ -7,7 +7,7 @@ process run_initial_read_processing {
   publishDir "${params.outdir}/${sample_id}", mode: "copy", pattern: "*.log"
   cpus 4
   memory 16.GB
-  time 8.h
+  time 4.h
 
   input:
   tuple val(sample_id), path("r1"), path("r2"), path("i2"), val("negative_R2_leading"), val("positive_R2_leading"), val("negative_R1_trailing"), val("positive_R1_trailing")
@@ -75,8 +75,8 @@ process process_paired_end_alignments {
   publishDir "${params.outdir}/${sample_id}", mode: "copy", pattern: "*.log"
   tag "Processing paired end alignments for sample ${sample_id}"
   cpus 1
-  memory 6.GB
-  time 5.m
+  memory 16.GB
+  time 1.h
 
   input:
   tuple val(sample_id), path("alignment")
@@ -121,8 +121,8 @@ process rescue_r2_reads {
   publishDir "${params.outdir}/${sample_id}", mode: "copy", pattern: "*.log"
   tag "Rescuing R2 reads for sample ${sample_id}"
   cpus 4
-  memory 8.GB
-  time 20.m
+  memory 16.GB
+  time 4.h
 
   input:
   tuple val(sample_id), path("r2_short"), path("r2_unmapped")
@@ -175,8 +175,8 @@ process rescue_r2_reads {
 
 process produce_combined_collapsed_data_frame {
   cpus 1
-  memory 6.GB
-  time 5.m
+  memory 8.GB
+  time 30.m
   tag "Producing combined/collapsed data frame from sample ${sample_id}"
   publishDir "${params.outdir}/${sample_id}", mode: "copy"
 
