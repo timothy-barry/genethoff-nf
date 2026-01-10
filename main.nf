@@ -6,7 +6,7 @@ process run_initial_read_processing {
   tag "Running initial read processing and alignment for ${sample_id}"
   publishDir "${params.outdir}/${sample_id}", mode: "copy", pattern: "*.log"
   cpus 4
-  memory 8.GB
+  memory 16.GB
   time 8.h
 
   input:
