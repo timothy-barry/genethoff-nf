@@ -174,6 +174,7 @@ process rescue_r2_reads {
 
 
 process produce_combined_collapsed_data_frame {
+  debug true
   cpus 1
   memory 8.GB
   time 30.m
@@ -210,7 +211,6 @@ workflow {
       .set { ch_input_reads }
 
   ch_run_initial_read_processing = run_initial_read_processing(ch_input_reads)
-  view(ch_run_initial_read_processing.aligned)
   ch_process_paired_end_alignments = process_paired_end_alignments(ch_run_initial_read_processing.aligned).out
   ch_rescue_r2_reads = rescue_r2_reads(ch_run_initial_read_processing.bad_r2).out
   joined_ch = ch_process_paired_end_alignments.join(ch_rescue_r2_reads)

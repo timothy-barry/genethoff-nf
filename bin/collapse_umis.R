@@ -15,6 +15,7 @@ df <- rbind(paired_counts_df, r2_counts_df) |>
   dplyr::distinct() |>
   dplyr::group_by(chr, start, strand) |>
   dplyr::summarize(umi_count = dplyr::n(),
+                   n_reads_per_umi = I(list(read_count)), # paste0(read_count, collapse = "-") ,
                    total_read_count = sum(read_count),
                    mean_mapq = sum(read_count/total_read_count * mean_mapq)) |>
   dplyr::ungroup()

@@ -1,4 +1,4 @@
-This is cutadapt 5.1 with Python 3.11.14
+This is cutadapt 5.2 with Python 3.11.6
 Command line parameters: -j 4 -A CTGTCTCTTATACAC;min_overlap=6;max_error_rate=0.1 -a TACCGTACACCAATGAGACCGCAATGACCAGCTTAATGCATCCACGGGGTTGGG;min_overlap=6;max_error_rate=0.1 -a CAACGTTCCATGTGTCCAACTCTGATGCTAGCCCATAGAGCCCACCGCATCCCCAGCATGCCTGCTATTGTCTTCCCAATCC;min_overlap=6;max_error_rate=0.1 -o r1_out_adapter_trim -p r2_out_adapter_trim r1_out_odn r2_out_odn
 Processing paired-end reads on 4 cores ...
 

@@ -1,4 +1,4 @@
-This is cutadapt 5.1 with Python 3.11.14
+This is cutadapt 5.2 with Python 3.11.6
 Command line parameters: -j 4 -G negative=GGATTGGGAAGACAATAGCAGGCATGCTGGGGATGCGGTGGGCTCTATGGGCTAGCATCAGAGTTGGACACATGGAACGTTG;max_error_rate=0.02;rightmost -G positive=CCCAACCCCGTGGATGCATTAAGCTGGTCATTGCGGTCTCATTGGTGTACGGTA;max_error_rate=0.02;rightmost --discard-untrimmed --rename={id}_{r2.adapter_name} {comment} -o r1_out_odn -p r2_out_odn r1_out_umi r2_out_umi
 Processing paired-end reads on 4 cores ...
 

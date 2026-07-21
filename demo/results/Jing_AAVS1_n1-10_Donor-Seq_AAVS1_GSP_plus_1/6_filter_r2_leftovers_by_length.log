@@ -1,4 +1,4 @@
-This is cutadapt 5.1 with Python 3.11.14
+This is cutadapt 5.2 with Python 3.11.6
 Command line parameters: -j 4 --minimum-length 25 --too-short-output r2_too_short -o r2_good_length combined_r2
 Processing single-end reads on 4 cores ...
 
