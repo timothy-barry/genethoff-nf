@@ -8,4 +8,4 @@
 #SBATCH --partition=short
 #SBATCH -c 4
 
-nextflow run "/Users/timbarry/research_code/genethoff-nf/main.nf" -c nextflow.config
+nextflow run "/Users/timbarry/research_code/genethoff-nf/main.nf" -c nextflow.config --pool_samples true

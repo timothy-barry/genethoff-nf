@@ -2,6 +2,27 @@
 // 1. publishDir
 // 2. keeping track of log files
 
+process pool_fastqs {
+  tag "Pooling FASTQs for ${pool_id}"
+  cpus 1
+  memory 4.GB
+  time 30.m
+
+  input:
+  tuple val(pool_id), path(r1s), path(r2s), path(i2s), val(negative_R2_leading), val(positive_R2_leading), val(negative_R1_trailing), val(positive_R1_trailing)
+
+  output:
+  tuple val(pool_id), path("pooled_R1.fastq"), path("pooled_R2.fastq"), path("pooled_I2.fastq"), val(negative_R2_leading), val(positive_R2_leading), val(negative_R1_trailing), val(positive_R1_trailing), emit: pooled
+
+  script:
+  """
+  cat ${r1s} > pooled_R1.fastq
+  cat ${r2s} > pooled_R2.fastq
+  cat ${i2s} > pooled_I2.fastq
+  """
+}
+
+
 process run_initial_read_processing {
   tag "Running initial read processing and alignment for ${sample_id}"
   publishDir "${params.outdir}/${sample_id}", mode: "copy", pattern: "*.log"
@@ -10,7 +31,7 @@ process run_initial_read_processing {
   time 4.h
 
   input:
-  tuple val(sample_id), path("r1"), path("r2"), path("i2"), val("negative_R2_leading"), val("positive_R2_leading"), val("negative_R1_trailing"), val("positive_R1_trailing")
+  tuple val(sample_id), path("r1"), path("r2"), path("i2"), val(negative_R2_leading), val(positive_R2_leading), val(negative_R1_trailing), val(positive_R1_trailing)
 
   output:
   tuple val(sample_id), path("paired_alignment.sam"), emit: aligned
@@ -195,10 +216,13 @@ process produce_combined_collapsed_data_frame {
 
 // WORKFLOW
 workflow {
+  pool_samples = (params.pool_samples ?: false).toString().toBoolean()
+
   Channel.fromPath(params.samplesheet)
       .splitCsv(header: true, sep: '\t')
       .map { row ->
           def sample_id = row.sample_id
+          def pool_id = pool_samples ? row.pool_id : sample_id
           def r1 = file(row.R1, checkIfExists: true)
           def r2 = file(row.R2, checkIfExists: true)
           def i2 = file(row.I2, checkIfExists: true)
@@ -206,11 +230,29 @@ workflow {
           def positive_R2_leading = row.positive_R2_leading
           def negative_R1_trailing = row.negative_R1_trailing
           def positive_R1_trailing = row.positive_R1_trailing
-          return [ sample_id, r1, r2, i2, negative_R2_leading, positive_R2_leading, negative_R1_trailing, positive_R1_trailing ]
+          return [ sample_id, pool_id, r1, r2, i2, negative_R2_leading, positive_R2_leading, negative_R1_trailing, positive_R1_trailing ]
       }
       .set { ch_input_reads }
+  if (pool_samples) {
+      ch_input_reads
+          .map { sample_id, pool_id, r1, r2, i2, negative_R2_leading, positive_R2_leading, negative_R1_trailing, positive_R1_trailing ->
+              tuple(pool_id, r1, r2, i2, negative_R2_leading, positive_R2_leading, negative_R1_trailing, positive_R1_trailing)
+          }
+          .groupTuple()
+          .map { pool_id, r1s, r2s, i2s, negative_R2_leadings, positive_R2_leadings, negative_R1_trailings, positive_R1_trailings ->
+              tuple(pool_id, r1s, r2s, i2s, negative_R2_leadings[0], positive_R2_leadings[0], negative_R1_trailings[0], positive_R1_trailings[0])
+          }
+          .set{ch_reads_to_pool}
+          ch_reads_for_processing = pool_fastqs(ch_reads_to_pool).pooled
+  } else { // eliminate the pool_id
+      ch_input_reads
+          .map { sample_id, pool_id, r1, r2, i2, negative_R2_leading, positive_R2_leading, negative_R1_trailing, positive_R1_trailing ->
+              tuple(sample_id, r1, r2, i2, negative_R2_leading, positive_R2_leading, negative_R1_trailing, positive_R1_trailing)
+          }
+          .set { ch_reads_for_processing }
+  }
 
-  ch_run_initial_read_processing = run_initial_read_processing(ch_input_reads)
+  ch_run_initial_read_processing = run_initial_read_processing(ch_reads_for_processing)
   ch_process_paired_end_alignments = process_paired_end_alignments(ch_run_initial_read_processing.aligned).out
   ch_rescue_r2_reads = rescue_r2_reads(ch_run_initial_read_processing.bad_r2).out
   joined_ch = ch_process_paired_end_alignments.join(ch_rescue_r2_reads)
