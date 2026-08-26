@@ -81,6 +81,10 @@ After running the pipeline, outputs should be written to the directory `genethof
 
 -   `umi_count`: UMI count of the base
 
+-   `umis`: UMI sequences at the base, ordered to match `n_reads_per_umi`
+
+-   `n_reads_per_umi`: read counts for each UMI at the base, ordered to match `umis`
+
 -   `total_read_count`: total read count across the UMIs
 
 -   `mean_mapq`: mean mapq score of the reads (before collapsing by UMI)

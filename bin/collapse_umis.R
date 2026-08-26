@@ -13,10 +13,12 @@ r2_counts_df <- read.delim(r2_counts_fp, header = FALSE, col.names = col_names) 
 
 df <- rbind(paired_counts_df, r2_counts_df) |>
   dplyr::distinct() |>
+  dplyr::arrange(chr, start, strand, umi) |>
   dplyr::group_by(chr, start, strand) |>
   dplyr::summarize(umi_count = dplyr::n(),
-                   n_reads_per_umi = I(list(read_count)), # paste0(read_count, collapse = "-") ,
+                   umis = I(list(umi)),
+                   n_reads_per_umi = I(list(read_count)),
                    total_read_count = sum(read_count),
-                   mean_mapq = sum(read_count/total_read_count * mean_mapq)) |>
-  dplyr::ungroup()
+                   mean_mapq = sum(read_count/total_read_count * mean_mapq),
+                   .groups = "drop")
 saveRDS(object = df, file = to_save)
