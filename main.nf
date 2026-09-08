@@ -9,10 +9,10 @@ process pool_fastqs {
   time 30.m
 
   input:
-  tuple val(pool_id), path(r1s), path(r2s), path(i2s), val(negative_R2_leading), val(positive_R2_leading), val(negative_R1_trailing), val(positive_R1_trailing)
+  tuple val(pool_id), path(r1s), path(r2s), path(i2s), val(umi_length), val(negative_R2_leading), val(positive_R2_leading), val(negative_R1_trailing), val(positive_R1_trailing)
 
   output:
-  tuple val(pool_id), path("pooled_R1.fastq"), path("pooled_R2.fastq"), path("pooled_I2.fastq"), val(negative_R2_leading), val(positive_R2_leading), val(negative_R1_trailing), val(positive_R1_trailing), emit: pooled
+  tuple val(pool_id), path("pooled_R1.fastq"), path("pooled_R2.fastq"), path("pooled_I2.fastq"), val(umi_length), val(negative_R2_leading), val(positive_R2_leading), val(negative_R1_trailing), val(positive_R1_trailing), emit: pooled
 
   script:
   """
@@ -31,7 +31,7 @@ process run_initial_read_processing {
   time 4.h
 
   input:
-  tuple val(sample_id), path("r1"), path("r2"), path("i2"), val(negative_R2_leading), val(positive_R2_leading), val(negative_R1_trailing), val(positive_R1_trailing)
+  tuple val(sample_id), path("r1"), path("r2"), path("i2"), val(umi_length), val(negative_R2_leading), val(positive_R2_leading), val(negative_R1_trailing), val(positive_R1_trailing)
 
   output:
   tuple val(sample_id), path("paired_alignment.sam"), emit: aligned
@@ -46,11 +46,11 @@ process run_initial_read_processing {
   """
   # step A: extract the UMI
   if [ "${params.umi_side}" = "5" ]; then
-      cutadapt -j ${task.cpus} -u ${params.umi_length} --rename='{id}_{r1.cut_prefix} {comment}' -o i2_out_umi -p r1_out_umi $i2 $r1 > extract_umi_r1.log
-      cutadapt -j ${task.cpus} -u ${params.umi_length} --rename='{id}_{r1.cut_prefix} {comment}' -o i2_out_umi -p r2_out_umi $i2 $r2 > extract_umi_r2.log
+      cutadapt -j ${task.cpus} -u ${umi_length} --rename='{id}_{r1.cut_prefix} {comment}' -o i2_out_umi -p r1_out_umi $i2 $r1 > extract_umi_r1.log
+      cutadapt -j ${task.cpus} -u ${umi_length} --rename='{id}_{r1.cut_prefix} {comment}' -o i2_out_umi -p r2_out_umi $i2 $r2 > extract_umi_r2.log
   else
-      cutadapt -j ${task.cpus} -u -${params.umi_length} --rename='{id}_{r1.cut_suffix} {comment}' -o i2_out_umi -p r1_out_umi $i2 $r1 > extract_umi_r1.log
-      cutadapt -j ${task.cpus} -u -${params.umi_length} --rename='{id}_{r1.cut_suffix} {comment}' -o i2_out_umi -p r2_out_umi $i2 $r2 > extract_umi_r2.log
+      cutadapt -j ${task.cpus} -u -${umi_length} --rename='{id}_{r1.cut_suffix} {comment}' -o i2_out_umi -p r1_out_umi $i2 $r1 > extract_umi_r1.log
+      cutadapt -j ${task.cpus} -u -${umi_length} --rename='{id}_{r1.cut_suffix} {comment}' -o i2_out_umi -p r2_out_umi $i2 $r2 > extract_umi_r2.log
   fi
 
   # step B: trim the dsODN tag
@@ -230,24 +230,25 @@ workflow {
           def positive_R2_leading = row.positive_R2_leading
           def negative_R1_trailing = row.negative_R1_trailing
           def positive_R1_trailing = row.positive_R1_trailing
-          return [ sample_id, pool_id, r1, r2, i2, negative_R2_leading, positive_R2_leading, negative_R1_trailing, positive_R1_trailing ]
+          def umi_length = row.umi_length ?: params.umi_length
+          return [ sample_id, pool_id, r1, r2, i2, umi_length, negative_R2_leading, positive_R2_leading, negative_R1_trailing, positive_R1_trailing ]
       }
       .set { ch_input_reads }
   if (pool_samples) {
       ch_input_reads
-          .map { sample_id, pool_id, r1, r2, i2, negative_R2_leading, positive_R2_leading, negative_R1_trailing, positive_R1_trailing ->
-              tuple(pool_id, r1, r2, i2, negative_R2_leading, positive_R2_leading, negative_R1_trailing, positive_R1_trailing)
+          .map { sample_id, pool_id, r1, r2, i2, umi_length, negative_R2_leading, positive_R2_leading, negative_R1_trailing, positive_R1_trailing ->
+              tuple(pool_id, r1, r2, i2, umi_length, negative_R2_leading, positive_R2_leading, negative_R1_trailing, positive_R1_trailing)
           }
           .groupTuple()
-          .map { pool_id, r1s, r2s, i2s, negative_R2_leadings, positive_R2_leadings, negative_R1_trailings, positive_R1_trailings ->
-              tuple(pool_id, r1s, r2s, i2s, negative_R2_leadings[0], positive_R2_leadings[0], negative_R1_trailings[0], positive_R1_trailings[0])
+          .map { pool_id, r1s, r2s, i2s, umi_lengths, negative_R2_leadings, positive_R2_leadings, negative_R1_trailings, positive_R1_trailings ->
+              tuple(pool_id, r1s, r2s, i2s, umi_lengths[0], negative_R2_leadings[0], positive_R2_leadings[0], negative_R1_trailings[0], positive_R1_trailings[0])
           }
           .set{ch_reads_to_pool}
           ch_reads_for_processing = pool_fastqs(ch_reads_to_pool).pooled
   } else { // eliminate the pool_id
       ch_input_reads
-          .map { sample_id, pool_id, r1, r2, i2, negative_R2_leading, positive_R2_leading, negative_R1_trailing, positive_R1_trailing ->
-              tuple(sample_id, r1, r2, i2, negative_R2_leading, positive_R2_leading, negative_R1_trailing, positive_R1_trailing)
+          .map { sample_id, pool_id, r1, r2, i2, umi_length, negative_R2_leading, positive_R2_leading, negative_R1_trailing, positive_R1_trailing ->
+              tuple(sample_id, r1, r2, i2, umi_length, negative_R2_leading, positive_R2_leading, negative_R1_trailing, positive_R1_trailing)
           }
           .set { ch_reads_for_processing }
   }
