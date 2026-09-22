@@ -89,6 +89,8 @@ After running the pipeline, outputs should be written to the directory `genethof
 
 -   `mean_mapq`: mean mapq score of the reads (before collapsing by UMI)
 
+To also save the filtered, coordinate-sorted BAM files and their indexes, pass `--write_bam_files true --bam_file_directory /path/to/bams`. Each sample gets a subdirectory containing `paired_alignment.bam`, `paired_alignment.bam.bai`, `r2_rescue_alignment.bam`, and `r2_rescue_alignment.bam.bai`. BAM export is disabled by default.
+
 ## Expected runtime
 
 When running this pipeline for the first time, Nextflow automatically will try to create a `guideseq-pipeline` `conda` environment. When using `mamba` (see "Requirements and installation"), the environment creation step should take under 10 minutes. The pipeline itself should run in under two minutes (depending on how long it takes for jobs to get scheduled).

@@ -1,3 +1,6 @@
+params.write_bam_files = false
+params.bam_file_directory = null
+
 // TO DO
 // 1. publishDir
 // 2. keeping track of log files
@@ -94,6 +97,9 @@ process run_initial_read_processing {
 
 process process_paired_end_alignments {
   publishDir "${params.outdir}/${sample_id}", mode: "copy", pattern: "*.log"
+  publishDir "${params.bam_file_directory}/${sample_id}", mode: "copy",
+    enabled: params.write_bam_files, pattern: "output.bam*",
+    saveAs: { name -> name.replace("output.bam", "paired_alignment.bam") }
   tag "Processing paired end alignments for sample ${sample_id}"
   cpus 1
   memory 16.GB
@@ -103,6 +109,7 @@ process process_paired_end_alignments {
   tuple val(sample_id), path("alignment")
 
   output:
+  tuple val(sample_id), path("output.bam"), path("output.bam.bai"), emit: bam
   tuple val(sample_id), path("output.umi"), emit: out
   path("5_paired_end_alignment_qc.log")
 
@@ -140,6 +147,9 @@ process process_paired_end_alignments {
 
 process rescue_r2_reads {
   publishDir "${params.outdir}/${sample_id}", mode: "copy", pattern: "*.log"
+  publishDir "${params.bam_file_directory}/${sample_id}", mode: "copy",
+    enabled: params.write_bam_files, pattern: "r2_alignment_sorted*",
+    saveAs: { name -> name.replace("r2_alignment_sorted", "r2_rescue_alignment.bam") }
   tag "Rescuing R2 reads for sample ${sample_id}"
   cpus 4
   memory 16.GB
@@ -149,6 +159,7 @@ process rescue_r2_reads {
   tuple val(sample_id), path("r2_short"), path("r2_unmapped")
 
   output:
+  tuple val(sample_id), path("r2_alignment_sorted"), path("r2_alignment_sorted.bai"), emit: bam
   tuple val(sample_id), path("output_r2.umi"), emit: out
   path("6_filter_r2_leftovers_by_length.log")
   path("7_align_r2_reads.log")
