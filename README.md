@@ -89,7 +89,7 @@ After running the pipeline, outputs should be written to the directory `genethof
 
 -   `mean_mapq`: mean mapq score of the reads (before collapsing by UMI)
 
-To also save the filtered, coordinate-sorted BAM files and their indexes, pass `--write_bam_files true --bam_file_directory /path/to/bams`. Each sample gets a subdirectory containing `paired_alignment.bam`, `paired_alignment.bam.bai`, `r2_rescue_alignment.bam`, and `r2_rescue_alignment.bam.bai`. BAM export is disabled by default.
+To also save the filtered, coordinate-sorted BAM files and their indexes, pass `--write_bam_files --bam_file_directory /path/to/bams`. Each sample gets a subdirectory containing `paired_alignment.bam`, `paired_alignment.bam.bai`, `r2_rescue_alignment.bam`, and `r2_rescue_alignment.bam.bai`. BAM export is disabled by default.
 
 ## Expected runtime
 
