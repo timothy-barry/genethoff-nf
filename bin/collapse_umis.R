@@ -12,7 +12,10 @@ paired_counts_df <- read.delim(paired_counts_fp, header = FALSE, col.names = col
 r2_counts_df <- read.delim(r2_counts_fp, header = FALSE, col.names = col_names) |> process_df()
 
 df <- rbind(paired_counts_df, r2_counts_df) |>
-  dplyr::distinct() |>
+  dplyr::group_by(chr, start, strand, umi) |>
+  dplyr::summarize(mean_mapq = sum(read_count * mean_mapq) / sum(read_count),
+                   read_count = sum(read_count),
+                   .groups = "drop") |>
   dplyr::arrange(chr, start, strand, umi) |>
   dplyr::group_by(chr, start, strand) |>
   dplyr::summarize(umi_count = dplyr::n(),

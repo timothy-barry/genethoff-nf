@@ -139,7 +139,7 @@ process process_paired_end_alignments {
   samtools index output.bam
 
   # step D: count number of reads per base
-  bedtools bamtobed -bedpe -mate1 -i output.bam > output.tmp
+  samtools sort -n -@ ${task.cpus} output.bam | bedtools bamtobed -bedpe -mate1 -i stdin > output.tmp
   awk 'BEGIN{OFS="\\t";FS="\\t"} (\$1 == \$4) {split(\$7,a,"_"); if(\$10=="+") print \$4,\$5+1,\$5+1,a[1],a[2],a[3],\$8,\$10,\$3-\$5; else print \$4,\$6,\$6,a[1],a[2],a[3],\$8,\$10,\$6-\$2}' output.tmp | sort -k1,1 -k2,3n -k6,6 -k5,5 -k8,8 | bedtools groupby -g 1,2,3,6,5,8 -c 4,7 -o count_distinct,mean  > output.umi
   """
 }
