@@ -103,7 +103,7 @@ process process_paired_end_alignments {
   tag "Processing paired end alignments for sample ${sample_id}"
   cpus 1
   memory 16.GB
-  time 1.h
+  time 4.h
 
   input:
   tuple val(sample_id), path("alignment")
